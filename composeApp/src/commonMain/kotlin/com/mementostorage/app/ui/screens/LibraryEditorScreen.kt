@@ -80,13 +80,39 @@ fun LibraryEditorScreen(
         }
     }
 
+    suspend fun saveIfValid() {
+        if (name.isBlank()) return
+        val libraryFields = fields.filter { it.name.isNotBlank() }.map { draft ->
+            LibraryField(
+                id = draft.id,
+                libraryId = libraryId.orEmpty(),
+                name = draft.name,
+                type = draft.type,
+                position = 0,
+                isRequired = draft.isRequired,
+                options = draft.optionsText.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+            )
+        }
+        if (libraryId == null) {
+            container.libraryRepository.createLibrary(name, description, "folder", libraryFields)
+        } else {
+            container.libraryRepository.renameLibrary(libraryId, name, description, "folder")
+            container.libraryRepository.replaceFields(libraryId, libraryFields)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(if (libraryId == null) "新しいライブラリ" else "ライブラリを編集") },
                 navigationIcon = {
-                    IconButton(onClick = onDone) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
+                    IconButton(onClick = {
+                        scope.launch {
+                            saveIfValid()
+                            onDone()
+                        }
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "保存して戻る")
                     }
                 },
             )
@@ -132,23 +158,7 @@ fun LibraryEditorScreen(
                 Button(
                     onClick = {
                         scope.launch {
-                            val libraryFields = fields.filter { it.name.isNotBlank() }.map { draft ->
-                                LibraryField(
-                                    id = draft.id,
-                                    libraryId = libraryId.orEmpty(),
-                                    name = draft.name,
-                                    type = draft.type,
-                                    position = 0,
-                                    isRequired = draft.isRequired,
-                                    options = draft.optionsText.split(",").map { it.trim() }.filter { it.isNotEmpty() },
-                                )
-                            }
-                            if (libraryId == null) {
-                                container.libraryRepository.createLibrary(name, description, "folder", libraryFields)
-                            } else {
-                                container.libraryRepository.renameLibrary(libraryId, name, description, "folder")
-                                container.libraryRepository.replaceFields(libraryId, libraryFields)
-                            }
+                            saveIfValid()
                             onDone()
                         }
                     },
