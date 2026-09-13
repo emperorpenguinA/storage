@@ -21,6 +21,15 @@ private const val DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
 private const val DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files"
 private const val FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
+/**
+ * Drive's actual responses carry fields (`kind`, `mimeType` on list results without `fields`
+ * scoping applied server-side to every nested object, etc.) beyond what [DriveFileDto]/
+ * [DriveFileListDto] declare. The default strict [Json] rejects any response containing an
+ * undeclared key, which made every upload/list/create call here fail — see the identical bug
+ * already fixed in GoogleAuthClient.wasmJs.kt.
+ */
+private val driveJson = Json { ignoreUnknownKeys = true }
+
 class DriveAuthException(message: String) : Exception(message)
 
 data class DriveFile(val id: String, val name: String, val mimeType: String)
@@ -48,7 +57,7 @@ class DriveApiClient(
             parameter("fields", "files(id,name,mimeType)")
             parameter("spaces", "drive")
         }
-        val list = Json.decodeFromString(DriveFileListDto.serializer(), response.body())
+        val list = driveJson.decodeFromString(DriveFileListDto.serializer(), response.body())
         return list.files.firstOrNull()?.toDomain()
     }
 
@@ -62,15 +71,15 @@ class DriveApiClient(
             parameter("fields", "files(id,name,mimeType)")
             parameter("spaces", "drive")
         }
-        val existing = Json.decodeFromString(DriveFileListDto.serializer(), response.body()).files.firstOrNull()
+        val existing = driveJson.decodeFromString(DriveFileListDto.serializer(), response.body()).files.firstOrNull()
         if (existing != null) return existing.id
 
         val createResponse: HttpResponse = httpClient.post(DRIVE_FILES_URL) {
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
-            setBody(Json.encodeToString(CreateFolderRequest.serializer(), CreateFolderRequest(name = folderName)))
+            setBody(driveJson.encodeToString(CreateFolderRequest.serializer(), CreateFolderRequest(name = folderName)))
         }
-        return Json.decodeFromString(DriveFileDto.serializer(), createResponse.body()).id
+        return driveJson.decodeFromString(DriveFileDto.serializer(), createResponse.body()).id
     }
 
     suspend fun uploadText(parentId: String, fileName: String, mimeType: String, content: String, existingFileId: String? = null): DriveFile =
@@ -108,7 +117,7 @@ class DriveApiClient(
                 setBody(ByteArrayContent(body, ContentType.parse("multipart/related; boundary=$boundary")))
             }
         }
-        return Json.decodeFromString(DriveFileDto.serializer(), response.body<String>()).toDomain()
+        return driveJson.decodeFromString(DriveFileDto.serializer(), response.body<String>()).toDomain()
     }
 
     suspend fun downloadText(fileId: String): String = downloadBytes(fileId).decodeToString()
