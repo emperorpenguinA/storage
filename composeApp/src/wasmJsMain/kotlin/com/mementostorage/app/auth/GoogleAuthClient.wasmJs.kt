@@ -12,6 +12,7 @@ import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.Parameters
 import io.ktor.http.encodeURLParameter
+import io.ktor.http.isSuccess
 import io.ktor.http.parseQueryString
 import kotlinx.browser.localStorage
 import kotlinx.browser.window
@@ -135,7 +136,7 @@ class WasmJsGoogleAuthClient(private val httpClient: HttpClient) : GoogleAuthCli
                 append("redirect_uri", redirectUri())
             },
         )
-        return lenientJson.decodeFromString(TokenResponse.serializer(), response.bodyAsText())
+        return response.bodyAsText().toTokenResponseOrThrow(response.status.isSuccess())
     }
 
     private suspend fun refreshAccessToken(refreshToken: String): TokenResponse {
@@ -148,7 +149,18 @@ class WasmJsGoogleAuthClient(private val httpClient: HttpClient) : GoogleAuthCli
                 append("refresh_token", refreshToken)
             },
         )
-        return lenientJson.decodeFromString(TokenResponse.serializer(), response.bodyAsText())
+        return response.bodyAsText().toTokenResponseOrThrow(response.status.isSuccess())
+    }
+
+    /**
+     * Decoding straight into [TokenResponse] on a Google error response (e.g. `invalid_client`,
+     * `invalid_grant`, `redirect_uri_mismatch`) just throws "access_token is required", which
+     * hides the actual reason Google rejected the request — surface the real status/body instead
+     * so it reaches [GoogleAuthState.authError] and is visible on screen.
+     */
+    private fun String.toTokenResponseOrThrow(wasSuccess: Boolean): TokenResponse {
+        check(wasSuccess) { "Google からエラー応答: $this" }
+        return lenientJson.decodeFromString(TokenResponse.serializer(), this)
     }
 
     private suspend fun persistTokenResponse(tokenResponse: TokenResponse) {
