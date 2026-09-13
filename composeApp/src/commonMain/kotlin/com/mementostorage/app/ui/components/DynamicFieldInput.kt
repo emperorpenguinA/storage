@@ -2,9 +2,11 @@ package com.mementostorage.app.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -17,6 +19,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -226,9 +229,15 @@ private fun PhotoFieldInput(
         }
     }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        PhotoThumbnail(fileStore = container.attachmentFileStore, attachment = currentAttachment)
-        Spacer(Modifier.width(8.dp))
+    Column {
+        Text(field.name, style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(4.dp))
+        PhotoThumbnail(
+            fileStore = container.attachmentFileStore,
+            attachment = currentAttachment,
+            size = 160.dp,
+        )
+        Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = launchPicker) {
             Text(if (currentAttachment != null) currentAttachment.fileName else "${field.name}を選択")
         }
