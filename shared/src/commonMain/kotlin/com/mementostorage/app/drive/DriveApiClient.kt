@@ -10,10 +10,12 @@ import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -29,6 +31,18 @@ private const val FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
  * already fixed in GoogleAuthClient.wasmJs.kt.
  */
 private val driveJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * Decoding an error response (401/403/404/...) straight into [DriveFileDto]/[DriveFileListDto]
+ * only reported "field 'id' is required", hiding why Drive actually rejected the call — this
+ * surfaces the real status/body so it reaches the caller (and, via SyncService's Result, the
+ * Settings screen) instead.
+ */
+private suspend fun HttpResponse.textOrThrow(): String {
+    val text = bodyAsText()
+    check(status.isSuccess()) { "Google Drive がエラー応答を返しました ($status): $text" }
+    return text
+}
 
 class DriveAuthException(message: String) : Exception(message)
 
@@ -57,7 +71,7 @@ class DriveApiClient(
             parameter("fields", "files(id,name,mimeType)")
             parameter("spaces", "drive")
         }
-        val list = driveJson.decodeFromString(DriveFileListDto.serializer(), response.body())
+        val list = driveJson.decodeFromString(DriveFileListDto.serializer(), response.textOrThrow())
         return list.files.firstOrNull()?.toDomain()
     }
 
@@ -71,7 +85,7 @@ class DriveApiClient(
             parameter("fields", "files(id,name,mimeType)")
             parameter("spaces", "drive")
         }
-        val existing = driveJson.decodeFromString(DriveFileListDto.serializer(), response.body()).files.firstOrNull()
+        val existing = driveJson.decodeFromString(DriveFileListDto.serializer(), response.textOrThrow()).files.firstOrNull()
         if (existing != null) return existing.id
 
         val createResponse: HttpResponse = httpClient.post(DRIVE_FILES_URL) {
@@ -79,7 +93,7 @@ class DriveApiClient(
             contentType(ContentType.Application.Json)
             setBody(driveJson.encodeToString(CreateFolderRequest.serializer(), CreateFolderRequest(name = folderName)))
         }
-        return driveJson.decodeFromString(DriveFileDto.serializer(), createResponse.body()).id
+        return driveJson.decodeFromString(DriveFileDto.serializer(), createResponse.textOrThrow()).id
     }
 
     suspend fun uploadText(parentId: String, fileName: String, mimeType: String, content: String, existingFileId: String? = null): DriveFile =
@@ -117,7 +131,7 @@ class DriveApiClient(
                 setBody(ByteArrayContent(body, ContentType.parse("multipart/related; boundary=$boundary")))
             }
         }
-        return driveJson.decodeFromString(DriveFileDto.serializer(), response.body<String>()).toDomain()
+        return driveJson.decodeFromString(DriveFileDto.serializer(), response.textOrThrow()).toDomain()
     }
 
     suspend fun downloadText(fileId: String): String = downloadBytes(fileId).decodeToString()
