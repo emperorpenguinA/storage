@@ -8,5 +8,5 @@ package com.mementostorage.app.auth
  * See README "Google Drive setup" for the full walkthrough.
  */
 object GoogleOAuthConfig {
-    const val webClientId: String = "REPLACE_WITH_YOUR_WEB_CLIENT_ID.apps.googleusercontent.com"
+    const val webClientId: String = "463986432173-41oqbp21q8uudbij4p0ug1gb283veh9a.apps.googleusercontent.com"
 }
