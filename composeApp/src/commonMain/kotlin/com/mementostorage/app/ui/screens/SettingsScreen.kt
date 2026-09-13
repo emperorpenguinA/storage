@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -58,7 +60,12 @@ fun SettingsScreen(
             )
         },
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
             Text("Google Drive バックアップ", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
 
@@ -74,9 +81,12 @@ fun SettingsScreen(
                         scope.launch {
                             busy = true
                             statusMessage = null
-                            val result = container.syncService.backupNow()
-                            statusMessage = if (result.isSuccess) "バックアップが完了しました" else "バックアップに失敗しました: ${result.exceptionOrNull()?.message}"
-                            busy = false
+                            try {
+                                val result = container.syncService.backupNow()
+                                statusMessage = if (result.isSuccess) "バックアップが完了しました" else "バックアップに失敗しました: ${result.exceptionOrNull()?.message}"
+                            } finally {
+                                busy = false
+                            }
                         }
                     },
                     enabled = !busy,
@@ -92,13 +102,16 @@ fun SettingsScreen(
                         scope.launch {
                             busy = true
                             statusMessage = null
-                            val result = container.syncService.restoreLatestBackup()
-                            statusMessage = when {
-                                result.isFailure -> "復元に失敗しました: ${result.exceptionOrNull()?.message}"
-                                result.getOrNull() == true -> "バックアップから復元しました"
-                                else -> "Drive にバックアップが見つかりませんでした"
+                            try {
+                                val result = container.syncService.restoreLatestBackup()
+                                statusMessage = when {
+                                    result.isFailure -> "復元に失敗しました: ${result.exceptionOrNull()?.message}"
+                                    result.getOrNull() == true -> "バックアップから復元しました"
+                                    else -> "Drive にバックアップが見つかりませんでした"
+                                }
+                            } finally {
+                                busy = false
                             }
-                            busy = false
                         }
                     },
                     enabled = !busy,
@@ -124,11 +137,14 @@ fun SettingsScreen(
                         scope.launch {
                             busy = true
                             statusMessage = null
-                            val result = authClient.signIn()
-                            if (result.isFailure) {
-                                statusMessage = "ログインに失敗しました: ${result.exceptionOrNull()?.message}"
+                            try {
+                                val result = authClient.signIn()
+                                if (result.isFailure) {
+                                    statusMessage = "ログインに失敗しました: ${result.exceptionOrNull()?.message}"
+                                }
+                            } finally {
+                                busy = false
                             }
-                            busy = false
                         }
                     },
                     enabled = !busy,
