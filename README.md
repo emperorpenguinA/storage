@@ -280,8 +280,15 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
 - ⚠️ Compose Multiplatform を 1.7.3 → 1.9.3 に更新した変更（日本語 IME 対応。後述）は、
   1.9.0 以降 wasmJs ターゲットの `androidx.compose.runtime` / `androidx.lifecycle` 系依存が
   `dl.google.com` からしか取得できなくなっており、この環境ではその時点で解決不能になったため、
-  **サンドボックス内でコンパイルを確認できていません**。Android 版と同じ制約です。実機（Android
-  Studio）での `./gradlew build` / `wasmJsBrowserDevelopmentRun` での確認をお願いします
+  **Compose Multiplatform 本体の更新そのものはサンドボックス内でコンパイルを確認できていません**。
+  Android 版と同じ制約です。実機（Android Studio）での `./gradlew build` /
+  `wasmJsBrowserDevelopmentRun` での確認をお願いします
+  - ただし、この更新に合わせて必要になった **Kotlin 本体 2.1.0 → 2.2.20 への更新**は、
+    Compose を含まない形（`shared`/`composeApp` の全ソースを Compose Multiplatform 1.7.3 のまま
+    Kotlin 2.2.20 でコンパイル）で実際に検証済みです。この過程で、Kotlin 2.2 系で
+    `KotlinWasmJsTargetDsl.moduleName`（`var moduleName: String?`）がエラー扱いになり
+    `outputModuleName`（Provider API）への置き換えが必要になった点を発見し、
+    両方の `build.gradle.kts`（`shared` / `composeApp`）で修正済みです
 
 その後、実際に Android Studio でこのプロジェクトを開いてビルドを通す過程で、以下の問題も見つかり
 修正済みです。

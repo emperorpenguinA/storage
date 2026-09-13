@@ -18,7 +18,7 @@ kotlin {
 
     @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
     wasmJs {
-        moduleName = "shared"
+        outputModuleName.set("shared")
         browser()
     }
 
