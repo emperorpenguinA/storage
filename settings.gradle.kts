@@ -2,15 +2,7 @@
 
 pluginManagement {
     repositories {
-        // Google's Maven repo, referenced by explicit URL (equivalent to the google()
-        // shorthand) since some network setups only allow this exact host.
-        maven("https://maven.google.com") {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
@@ -18,7 +10,7 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
-        maven("https://maven.google.com")
+        google()
         mavenCentral()
     }
 }
