@@ -23,7 +23,7 @@ import com.mementostorage.app.ui.screens.SettingsScreen
  */
 @Composable
 fun App() {
-    MaterialTheme {
+    MaterialTheme(typography = rememberJapaneseTypography()) {
         Surface(modifier = Modifier) {
             val authClient = rememberGoogleAuthClient()
             val container = rememberAppContainer(authClient)

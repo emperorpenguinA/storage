@@ -36,6 +36,7 @@ kotlin {
             implementation(compose.material3)
             implementation(compose.ui)
             implementation(compose.materialIconsExtended)
+            implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.runtimeCompose)
@@ -62,6 +63,12 @@ kotlin {
             }
         }
     }
+}
+
+compose.resources {
+    // Pinned explicitly so the generated Res accessor's package is known and stable,
+    // rather than relying on the plugin's inferred default.
+    packageOfResClass = "com.mementostorage.app.generated.resources"
 }
 
 android {
