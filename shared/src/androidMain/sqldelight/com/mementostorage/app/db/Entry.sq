@@ -1,0 +1,41 @@
+CREATE TABLE Entry (
+    id TEXT NOT NULL PRIMARY KEY,
+    libraryId TEXT NOT NULL,
+    valuesJson TEXT NOT NULL DEFAULT '{}',
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    FOREIGN KEY(libraryId) REFERENCES Library(id) ON DELETE CASCADE
+);
+
+CREATE INDEX Entry_libraryId ON Entry(libraryId);
+
+selectEntriesByLibrary:
+SELECT * FROM Entry WHERE libraryId = ? ORDER BY updatedAt DESC;
+
+selectEntriesByLibraries:
+SELECT * FROM Entry WHERE libraryId IN ? ORDER BY libraryId ASC, updatedAt DESC;
+
+selectEntryById:
+SELECT * FROM Entry WHERE id = ?;
+
+countEntriesByLibrary:
+SELECT COUNT(*) FROM Entry WHERE libraryId = ?;
+
+insertEntry:
+INSERT INTO Entry(id, libraryId, valuesJson, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?);
+
+updateEntry:
+UPDATE Entry
+SET valuesJson = ?, updatedAt = ?
+WHERE id = ?;
+
+deleteEntryById:
+DELETE FROM Entry WHERE id = ?;
+
+upsertEntry:
+INSERT INTO Entry(id, libraryId, valuesJson, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    valuesJson = excluded.valuesJson,
+    updatedAt = excluded.updatedAt;
