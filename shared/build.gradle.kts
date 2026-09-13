@@ -63,12 +63,17 @@ android {
     }
 }
 
-// The .sq schema lives under src/androidMain/sqldelight: SQLDelight backs local storage on
-// Android only. The wasmJs target uses a much simpler JSON-in-localStorage store instead
-// (see data/local/WasmJsLocalStore.kt) because SQLDelight's browser drivers (sql.js / a
-// worker-hosted SQLite-Wasm) are still a fast-moving, version-sensitive part of the
-// ecosystem; a flat JSON document is more than enough data for a personal database app and
-// keeps the web target on plain, dependable browser APIs.
+// The .sq schema lives under src/commonMain/sqldelight: SQLDelight's Kotlin Multiplatform
+// support only generates the Database interface from a commonMain source set (a database
+// under androidMain/sqldelight is silently ignored — its generator task reports NO-SOURCE).
+// The generated AppDatabase class itself is plain, platform-agnostic Kotlin though, so this
+// doesn't force wasmJs to actually use it: only the Android repositories construct one, with
+// an AndroidSqliteDriver (see data/db/DatabaseDriverFactory.android.kt). wasmJs keeps its
+// much simpler JSON-in-localStorage store instead (see data/local/WasmJsLocalStore.kt),
+// because SQLDelight's browser drivers (sql.js / a worker-hosted SQLite-Wasm) are still a
+// fast-moving, version-sensitive part of the ecosystem; a flat JSON document is more than
+// enough data for a personal database app and keeps the web target on plain, dependable
+// browser APIs.
 sqldelight {
     databases {
         create("AppDatabase") {
