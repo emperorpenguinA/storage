@@ -30,6 +30,9 @@ import com.mementostorage.app.auth.GoogleAuthClient
 import com.mementostorage.app.di.AppContainer
 import com.mementostorage.app.domain.model.DriveAccountSettings
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,7 +65,7 @@ fun SettingsScreen(
             if (authState.isSignedIn) {
                 Text("接続中${authState.accountEmail?.let { ": $it" } ?: ""}")
                 driveSettings.lastSyncAt?.let { lastSync ->
-                    Text("最終同期: ${lastSync}")
+                    Text("最終同期: ${formatSyncTimestamp(lastSync)}")
                 }
                 Spacer(Modifier.height(12.dp))
 
@@ -149,4 +152,12 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+/** [DriveAccountSettings.lastSyncAt] is a raw epoch-millis timestamp; format it for display. */
+private fun formatSyncTimestamp(epochMillis: Long): String {
+    val dateTime = Instant.fromEpochMilliseconds(epochMillis).toLocalDateTime(TimeZone.currentSystemDefault())
+    fun Int.pad() = toString().padStart(2, '0')
+    return "${dateTime.year}/${dateTime.monthNumber.pad()}/${dateTime.dayOfMonth.pad()} " +
+        "${dateTime.hour.pad()}:${dateTime.minute.pad()}"
 }
