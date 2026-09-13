@@ -349,6 +349,17 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
   タグを見ていないアプリ側では横向きのまま表示されていました
   （`androidx.exifinterface` で Orientation タグを読み取り、`Matrix` で回転・反転をかけてから
   表示するように修正）
+- Kotlin を 2.2.20 に更新した後も、Web 版でボタン（戻る矢印を含む）を押すと実行時に
+  `IrLinkageError: Can not get instance of singleton 'Companion': No class found for symbol
+  'kotlinx.datetime/Instant.Companion'` が発生し、押した瞬間の見た目の反応（リップル）以降
+  画面全体が反応しなくなる問題。コンパイル自体は成功するため今まで気づけませんでした。
+  `kotlinx-datetime` 0.6.1 の事前ビルド済みライブラリ（klib）が、更新後の Kotlin
+  標準ライブラリの `kotlin.time.Instant` と実行時にリンクできていなかったのが原因です。
+  `kotlinx-datetime` を `0.8.0-0.6.x-compat`（0.7.0 以降の破壊的 API 変更を避けつつ、
+  新しい Kotlin と互換性のあるビルドを使う互換パッケージ）に更新して解消しました。
+  この修正は、実際に `./gradlew wasmJsBrowserDevelopmentExecutableDistribution` でビルドした
+  Web 版一式をヘッドレス Chromium で実際に起動し、ライブラリ名を入力して左上の矢印で保存・
+  一覧に戻る操作までスクリーンショット付きで確認済みです
 
 これらを経て、**Android Studio 上での実機ビルド（`./gradlew build` 相当）が成功することを確認済み**です。
 一方で、次の点はビルド成功の確認どまりで、実際の動作までは未確認です。

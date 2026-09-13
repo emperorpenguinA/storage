@@ -45,6 +45,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
+import kotlin.time.ExperimentalTime
 
 /**
  * Renders the right input widget for one [LibraryField], reading/writing the raw string value
@@ -120,7 +121,7 @@ fun DynamicFieldInput(
  * [DatePicker] works in UTC-midnight epoch millis, so conversion happens at UTC to avoid the
  * selected day shifting by one depending on the device's time zone.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalTime::class)
 @Composable
 private fun DateFieldInput(field: LibraryField, value: String, onValueChange: (String) -> Unit) {
     var showPicker by remember { mutableStateOf(false) }
