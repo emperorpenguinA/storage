@@ -34,7 +34,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mementostorage.app.di.AppContainer
 import com.mementostorage.app.domain.model.Entry
+import com.mementostorage.app.domain.model.FieldType
 import com.mementostorage.app.domain.model.Library
+import com.mementostorage.app.ui.components.PhotoThumbnail
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,7 +99,12 @@ fun EntryListScreen(
             } else {
                 LazyColumn(contentPadding = PaddingValues(vertical = 4.dp)) {
                     items(filteredEntries, key = { it.id }) { entry ->
-                        EntryRow(entry = entry, library = currentLibrary, onClick = { onOpenEntry(entry.id) })
+                        EntryRow(
+                            container = container,
+                            entry = entry,
+                            library = currentLibrary,
+                            onClick = { onOpenEntry(entry.id) },
+                        )
                     }
                 }
             }
@@ -106,15 +113,23 @@ fun EntryListScreen(
 }
 
 @Composable
-private fun EntryRow(entry: Entry, library: Library, onClick: () -> Unit) {
-    val primaryField = library.fields.minByOrNull { it.position }
+private fun EntryRow(container: AppContainer, entry: Entry, library: Library, onClick: () -> Unit) {
+    val sortedFields = library.fields.sortedBy { it.position }
+    val primaryField = sortedFields.firstOrNull()
     val title = primaryField?.let { entry.values[it.id] }?.takeIf { it.isNotBlank() } ?: "(無題)"
-    val subtitle = library.fields.drop(1).take(2)
+    val subtitle = sortedFields.drop(1).take(2)
         .mapNotNull { field -> entry.values[field.id]?.takeIf { it.isNotBlank() }?.let { "${field.name}: $it" } }
         .joinToString(" ・ ")
+    val photoField = sortedFields.firstOrNull { it.type == FieldType.PHOTO }
+    val photoAttachment = photoField
+        ?.let { entry.values[it.id] }
+        ?.let { attachmentId -> entry.attachments.firstOrNull { it.id == attachmentId } }
 
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
         ListItem(
+            leadingContent = if (photoField != null) {
+                { PhotoThumbnail(fileStore = container.attachmentFileStore, attachment = photoAttachment) }
+            } else null,
             headlineContent = { Text(title) },
             supportingContent = if (subtitle.isNotBlank()) {
                 { Text(subtitle) }

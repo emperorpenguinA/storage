@@ -40,6 +40,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.datetime)
             // `shared` depends on these itself via `implementation`, which does not leak
             // transitively — but AppContainer's android/wasmJs actuals both construct a
             // DriveApiClient(createHttpClient(), ...) directly, so this module needs its own
