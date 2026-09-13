@@ -233,7 +233,7 @@ private fun PhotoFieldInput(
         Text(field.name, style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(4.dp))
         PhotoThumbnail(
-            fileStore = container.attachmentFileStore,
+            container = container,
             attachment = currentAttachment,
             size = 160.dp,
             enlargeOnClick = true,

@@ -29,14 +29,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.mementostorage.app.data.local.AttachmentFileStore
+import com.mementostorage.app.di.AppContainer
 import com.mementostorage.app.domain.model.EntryAttachment
 
 /**
  * A small square preview of a PHOTO field's attachment, loading and decoding its bytes lazily.
- * Shows a placeholder icon while loading, on decode failure, or when the bytes aren't available
- * locally (e.g. a restored-from-backup attachment whose content hasn't been re-downloaded yet —
- * see SyncService's restoreLatestBackup doc comment).
+ * Shows a placeholder icon while loading or on decode failure. If the bytes aren't available
+ * locally yet (e.g. a restored-from-backup attachment whose content was never re-downloaded),
+ * [com.mementostorage.app.drive.SyncService.ensureAttachmentBytes] fetches and caches them from
+ * Drive on first display.
  *
  * When [enlargeOnClick] is set, tapping the thumbnail opens it full-screen in a dialog (tap the
  * dialog's background or its close button to dismiss). Leave it off where the thumbnail sits
@@ -45,7 +46,7 @@ import com.mementostorage.app.domain.model.EntryAttachment
  */
 @Composable
 fun PhotoThumbnail(
-    fileStore: AttachmentFileStore,
+    container: AppContainer,
     attachment: EntryAttachment?,
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
@@ -55,8 +56,8 @@ fun PhotoThumbnail(
     var showFullScreen by remember { mutableStateOf(false) }
 
     LaunchedEffect(attachment?.id, attachment?.localPath) {
-        bitmap = attachment?.localPath
-            ?.let { fileStore.readBytes(it) }
+        bitmap = attachment
+            ?.let { container.syncService.ensureAttachmentBytes(it) }
             ?.let { decodeImageBitmapOrNull(it) }
     }
 

@@ -128,7 +128,7 @@ private fun EntryRow(container: AppContainer, entry: Entry, library: Library, on
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
         ListItem(
             leadingContent = if (photoField != null) {
-                { PhotoThumbnail(fileStore = container.attachmentFileStore, attachment = photoAttachment) }
+                { PhotoThumbnail(container = container, attachment = photoAttachment) }
             } else null,
             headlineContent = { Text(title) },
             supportingContent = if (subtitle.isNotBlank()) {

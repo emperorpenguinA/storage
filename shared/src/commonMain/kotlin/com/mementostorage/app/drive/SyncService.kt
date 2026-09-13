@@ -4,6 +4,7 @@ import com.mementostorage.app.data.local.AttachmentFileStore
 import com.mementostorage.app.data.snapshot.AppDataSnapshot
 import com.mementostorage.app.data.snapshot.toDomain
 import com.mementostorage.app.data.snapshot.toDto
+import com.mementostorage.app.domain.model.EntryAttachment
 import com.mementostorage.app.domain.repository.AttachmentRepository
 import com.mementostorage.app.domain.repository.DriveSettingsRepository
 import com.mementostorage.app.domain.repository.EntryRepository
@@ -69,10 +70,26 @@ class SyncService(
     }
 
     /**
+     * Returns [attachment]'s bytes, downloading them from Drive and caching the result locally
+     * (updating [AttachmentRepository]'s stored `localPath`) if they aren't available on this
+     * device yet — the normal case right after [restoreLatestBackup], since only the metadata
+     * row is restored eagerly. Returns null if there's nothing to download from yet (no
+     * `driveFileId`, e.g. mid-upload) or the download itself fails (not signed in, offline, ...).
+     */
+    suspend fun ensureAttachmentBytes(attachment: EntryAttachment): ByteArray? {
+        fileStore.readBytes(attachment.localPath)?.let { return it }
+        val driveFileId = attachment.driveFileId ?: return null
+        val bytes = runCatching { driveApiClient.downloadBytes(driveFileId) }.getOrNull() ?: return null
+        val newLocalPath = fileStore.writeBytes(attachment.fileName, bytes)
+        attachmentRepository.upsertAttachment(attachment.copy(localPath = newLocalPath))
+        return bytes
+    }
+
+    /**
      * Pulls the latest backup down and upserts it into local storage. Attachment binary
      * content is not re-downloaded eagerly here — only the metadata row (including the
-     * driveFileId) is restored; [DriveApiClient.downloadBytes] can fetch the actual bytes the
-     * first time a restored photo is opened.
+     * driveFileId) is restored; [ensureAttachmentBytes] fetches the actual bytes the first
+     * time a restored photo is actually shown.
      */
     suspend fun restoreLatestBackup(): Result<Boolean> = runCatching {
         val folderId = driveApiClient.ensureAppFolder()
