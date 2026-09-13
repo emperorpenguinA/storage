@@ -236,6 +236,7 @@ private fun PhotoFieldInput(
             fileStore = container.attachmentFileStore,
             attachment = currentAttachment,
             size = 160.dp,
+            enlargeOnClick = true,
         )
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = launchPicker) {
