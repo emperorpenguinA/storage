@@ -39,6 +39,19 @@ class SyncService(
     suspend fun backupNow(): Result<Unit> = runCatching {
         val folderId = driveApiClient.ensureAppFolder()
 
+        // Upload any not-yet-synced attachment bytes and record their driveFileId *before*
+        // building the snapshot below -- this used to run after backup.json was already
+        // uploaded, so backup.json always described these attachments with driveFileId still
+        // null. Restoring that backup elsewhere then had nothing to download the photo from,
+        // even though the photo itself had, in fact, made it to Drive.
+        attachmentRepository.getPendingAttachments().forEach { attachment ->
+            val bytes = fileStore.readBytes(attachment.localPath)
+            if (bytes != null) {
+                val uploaded = driveApiClient.uploadBytes(folderId, attachment.fileName, attachment.mimeType, bytes)
+                attachmentRepository.markSynced(attachment.id, uploaded.id)
+            }
+        }
+
         val libraries = libraryRepository.observeLibraries().first()
         val entries = entryRepository.getAllEntries(libraries.map { it.id })
 
@@ -57,14 +70,6 @@ class SyncService(
             content = json.encodeToString(AppDataSnapshot.serializer(), snapshot),
             existingFileId = existingBackup?.id,
         )
-
-        attachmentRepository.getPendingAttachments().forEach { attachment ->
-            val bytes = fileStore.readBytes(attachment.localPath)
-            if (bytes != null) {
-                val uploaded = driveApiClient.uploadBytes(folderId, attachment.fileName, attachment.mimeType, bytes)
-                attachmentRepository.markSynced(attachment.id, uploaded.id)
-            }
-        }
 
         val currentSettings = driveSettingsRepository.observeSettings().first()
         driveSettingsRepository.save(currentSettings.copy(rootFolderId = folderId, lastSyncAt = nowEpochMillis()))
