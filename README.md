@@ -235,9 +235,9 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
 ## この環境で検証できたこと・できなかったこと
 
 このプロジェクトはネットワークが Google の Maven リポジトリ (`dl.google.com`) をブロックする
-サンドボックス環境で作成したため、Android Gradle Plugin 自体を取得できず、
-`./gradlew build` をこの環境内で最後まで通すことはできませんでした。代わりに、範囲を絞った
-一時プロジェクトを作って次の点は実際にコンパイルが通ることを確認しています。
+サンドボックス環境で開発したため、開発時点では Android Gradle Plugin 自体を取得できず、
+`./gradlew build` をサンドボックス内で最後まで通すことはできませんでした。代わりに、範囲を絞った
+一時プロジェクトを作って次の点は実際にコンパイルが通ることを確認していました。
 
 - ✅ `shared` の共通ロジック（ドメインモデル・リポジトリ interface・`DriveApiClient`・`SyncService`・
   JSON マッピング）を Kotlin/JVM + Ktor + kotlinx.serialization でコンパイル
@@ -253,13 +253,22 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
   （この過程で Ktor の wasmJs 対応バージョン、`composeApp` に不足していた依存関係、
   型付き配列(`Int8Array`)まわりの実装ミスなども発見し修正済みです）
 
-一方で、以下は Android SDK が無いと検証できないため**未検証**です。実際に手元の Android Studio で
-ビルドして、挙動を確認してください。
+その後、実際に Android Studio でこのプロジェクトを開いてビルドを通す過程で、以下の問題も見つかり
+修正済みです。
 
-- `AndroidManifest.xml` や `MainActivity`、Compose の Android ターゲットとしてのビルド設定全体
-- `com.google.android.gms:play-services-auth` の Authorization API まわり
+- ルートの `build.gradle.kts` に `com.android.library` プラグインの宣言が抜けており、
+  「plugin is already on the classpath with an unknown version」でビルドできない問題
+- `app.cash.sqldelight:runtime` が 2.0.x では wasmJs 向けを配布しておらず、
+  `:shared:wasmJsMain` の依存関係解決に失敗する問題（2.1.0 以降へ更新して解消）
+- サンドボックス環境の都合で `settings.gradle.kts` が `google()` の代わりに
+  `maven("https://maven.google.com")` を使っていた点（標準の `google()` に戻し済み）
+
+これらを経て、**Android Studio 上での実機ビルド（`./gradlew build` 相当）が成功することを確認済み**です。
+一方で、次の点はビルド成功の確認どまりで、実際の動作までは未確認です。
+
+- `com.google.android.gms:play-services-auth` の Authorization API を使った、
+  端末上での実際の Google サインイン〜Drive バックアップ／復元の一連の動作
   （`composeApp/.../auth/GoogleAuthClient.android.kt`）
-- 端末上での実際の Google サインイン〜Drive バックアップ／復元の一連の動作
 
 ## 既知の制約
 
