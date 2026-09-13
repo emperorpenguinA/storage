@@ -222,14 +222,27 @@ Android はシステムの写真ピッカー（`ActivityResultContracts.GetConte
      （開発中は `./gradlew :composeApp:wasmJsBrowserDevelopmentRun` が使うローカルサーバーの URL。
      本番配信する場合はそのドメインの URL も追加）
    - 発行された「クライアント ID」（`xxxxx.apps.googleusercontent.com` の形式）と
-     「クライアント シークレット」の両方を、
-     `composeApp/src/commonMain/kotlin/com/mementostorage/app/auth/GoogleOAuthConfig.kt` の
-     `webClientId` / `webClientSecret` に貼り付ける
-     （Google は「ウェブ アプリケーション」タイプのクライアントに対しては、PKCE を使っていても
-     トークン交換時にクライアント シークレットを要求します。このシークレットはビルドされた
-     wasmJs のバンドルにそのまま埋め込まれるため、厳密な意味での「秘密」にはなりません。
-     `drive.file` スコープとリダイレクト URI の許可リストによるアクセス制限が実質的な防御線に
-     なるので、このアプリは個人利用・限定公開を前提としてください）
+     「クライアント シークレット」の両方を、**コードには直接書かず**、プロジェクトルートの
+     `local.properties`（Android Studio が自動生成する、Git 管理対象外のファイル）に
+     以下の2行を追記する
+     ```properties
+     google.web.client.id=xxxxx.apps.googleusercontent.com
+     google.web.client.secret=xxxxx
+     ```
+     ビルド時に `:composeApp:generateGoogleOAuthConfig` タスク（`composeApp/build.gradle.kts`）が
+     この2つの値を読み取って `GoogleOAuthConfig.kt` を自動生成するため、
+     コード側を直接編集する必要はありません。`local.properties` が無い・値が未設定の場合は
+     プレースホルダー文字列のまま生成され、ビルド自体は通ります（サインインだけ失敗します）。
+     - Google は「ウェブ アプリケーション」タイプのクライアントに対しては、PKCE を使っていても
+       トークン交換時にクライアント シークレットを要求します。このシークレットはビルドされた
+       wasmJs のバンドルにそのまま埋め込まれるため、厳密な意味での「秘密」にはなりません。
+       `drive.file` スコープとリダイレクト URI の許可リストによるアクセス制限が実質的な防御線に
+       なるので、このアプリは個人利用・限定公開を前提としてください
+     - **注意**: このリポジトリでは以前、クライアント シークレットが誤って
+       `GoogleOAuthConfig.kt` に直接コミットされ、Git の履歴に残ってしまいました。
+       過去のコミット履歴は書き換えていないため、その値は漏えい済みとみなし、
+       Google Cloud Console の「認証情報」画面から**必ずシークレットをリセット（再発行）**して、
+       新しい値だけを `local.properties` に設定してください
 
 Web 版は Google の JS SDK（Google Identity Services）を読み込まず、`window.location` による
 フルページリダイレクトだけで完結する **OAuth 2.0 Authorization Code + PKCE フロー**を自前実装しています
@@ -284,6 +297,11 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
 - Web 版はログインがフルページリダイレクトを伴うため、ログイン後にページが再読み込みされて
   画面遷移の状態（設定画面を開いていたこと）が失われ、ライブラリ一覧画面に戻ってしまう問題
   （リダイレクトから復帰したことを検知して、起動時に設定画面へ自動遷移するよう修正）
+- `GoogleOAuthConfig.kt` にクライアント ID・シークレットを直接書き込む方式だったため、
+  実際に動作確認する過程でクライアント シークレットが誤って Git にコミットされてしまった問題
+  （`local.properties`（Git 管理対象外）から値を読み取って `GoogleOAuthConfig.kt` を自動生成する
+  Gradle タスクに変更し、コードに実際の値を書かずに済むようにしました。過去に漏えいした
+  シークレットは上記セットアップ手順の注意書きの通りリセットが必要です）
 
 これらを経て、**Android Studio 上での実機ビルド（`./gradlew build` 相当）が成功することを確認済み**です。
 一方で、次の点はビルド成功の確認どまりで、実際の動作までは未確認です。
