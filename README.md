@@ -277,6 +277,11 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
   Android ターゲットを一時的に外した状態で実際にコンパイル
   （この過程で Ktor の wasmJs 対応バージョン、`composeApp` に不足していた依存関係、
   型付き配列(`Int8Array`)まわりの実装ミスなども発見し修正済みです）
+- ⚠️ Compose Multiplatform を 1.7.3 → 1.9.3 に更新した変更（日本語 IME 対応。後述）は、
+  1.9.0 以降 wasmJs ターゲットの `androidx.compose.runtime` / `androidx.lifecycle` 系依存が
+  `dl.google.com` からしか取得できなくなっており、この環境ではその時点で解決不能になったため、
+  **サンドボックス内でコンパイルを確認できていません**。Android 版と同じ制約です。実機（Android
+  Studio）での `./gradlew build` / `wasmJsBrowserDevelopmentRun` での確認をお願いします
 
 その後、実際に Android Studio でこのプロジェクトを開いてビルドを通す過程で、以下の問題も見つかり
 修正済みです。
@@ -316,6 +321,11 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
   「ローカルになければ Drive からダウンロードする」フォールバックが未実装だったため、
   復元した写真が表示されない問題（`SyncService.ensureAttachmentBytes` を追加し、
   初回表示時に自動ダウンロード＋ローカルへのキャッシュを行うよう修正）
+- Web 版で項目名などのテキスト入力時に日本語（かな漢字）入力の IME が無効になり、
+  ローマ字などしか入力できない問題。Compose Multiplatform 1.7.3 時点の wasmJs ターゲットは
+  IME の変換確定（コンポジション）まわりの実装が未熟で、これは既知の制限でした
+  （Compose Multiplatform 1.9.0 でこの変換確定処理が修正されているため、1.9.3 へ更新。
+  上記の通りこの更新自体は本環境ではコンパイル未確認です）
 
 これらを経て、**Android Studio 上での実機ビルド（`./gradlew build` 相当）が成功することを確認済み**です。
 一方で、次の点はビルド成功の確認どまりで、実際の動作までは未確認です。
