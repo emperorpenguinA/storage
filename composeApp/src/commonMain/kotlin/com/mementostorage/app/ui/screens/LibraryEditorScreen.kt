@@ -14,6 +14,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -41,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import com.mementostorage.app.di.AppContainer
 import com.mementostorage.app.domain.model.FieldType
 import com.mementostorage.app.domain.model.LibraryField
+import com.mementostorage.app.ui.components.ConfirmDeleteDialog
 import com.mementostorage.app.util.IdGenerator
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -65,6 +68,16 @@ fun LibraryEditorScreen(
     var description by remember { mutableStateOf("") }
     var fields by remember { mutableStateOf(listOf<FieldDraft>()) }
     var loaded by remember { mutableStateOf(libraryId == null) }
+    var showDeleteLibraryConfirm by remember { mutableStateOf(false) }
+
+    fun moveField(index: Int, delta: Int) {
+        val target = index + delta
+        if (target !in fields.indices) return
+        fields = fields.toMutableList().also {
+            val moved = it.removeAt(index)
+            it.add(target, moved)
+        }
+    }
 
     LaunchedEffect(libraryId) {
         if (libraryId != null) {
@@ -141,6 +154,10 @@ fun LibraryEditorScreen(
             fields.forEachIndexed { index, field ->
                 FieldDraftRow(
                     field = field,
+                    canMoveUp = index > 0,
+                    canMoveDown = index < fields.lastIndex,
+                    onMoveUp = { moveField(index, -1) },
+                    onMoveDown = { moveField(index, 1) },
                     onChange = { updated -> fields = fields.toMutableList().also { it[index] = updated } },
                     onRemove = { fields = fields.toMutableList().also { it.removeAt(index) } },
                 )
@@ -168,24 +185,43 @@ fun LibraryEditorScreen(
                 }
 
                 if (libraryId != null) {
-                    TextButton(onClick = {
-                        scope.launch {
-                            container.libraryRepository.deleteLibrary(libraryId)
-                            onDone()
-                        }
-                    }) {
+                    TextButton(onClick = { showDeleteLibraryConfirm = true }) {
                         Text("ライブラリを削除")
                     }
                 }
             }
         }
     }
+
+    if (showDeleteLibraryConfirm && libraryId != null) {
+        ConfirmDeleteDialog(
+            title = "ライブラリを削除",
+            message = "「$name」を削除します。中のレコードもすべて削除され、元に戻せません。",
+            onConfirm = {
+                showDeleteLibraryConfirm = false
+                scope.launch {
+                    container.libraryRepository.deleteLibrary(libraryId)
+                    onDone()
+                }
+            },
+            onDismiss = { showDeleteLibraryConfirm = false },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FieldDraftRow(field: FieldDraft, onChange: (FieldDraft) -> Unit, onRemove: () -> Unit) {
+private fun FieldDraftRow(
+    field: FieldDraft,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onChange: (FieldDraft) -> Unit,
+    onRemove: () -> Unit,
+) {
     var typeMenuExpanded by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -196,7 +232,13 @@ private fun FieldDraftRow(field: FieldDraft, onChange: (FieldDraft) -> Unit, onR
                     label = { Text("項目名") },
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = onRemove) {
+                IconButton(onClick = onMoveUp, enabled = canMoveUp) {
+                    Icon(Icons.Default.ArrowUpward, contentDescription = "上に移動")
+                }
+                IconButton(onClick = onMoveDown, enabled = canMoveDown) {
+                    Icon(Icons.Default.ArrowDownward, contentDescription = "下に移動")
+                }
+                IconButton(onClick = { showDeleteConfirm = true }) {
                     Icon(Icons.Default.Delete, contentDescription = "項目を削除")
                 }
             }
@@ -243,6 +285,18 @@ private fun FieldDraftRow(field: FieldDraft, onChange: (FieldDraft) -> Unit, onR
                 Text("必須項目にする")
             }
         }
+    }
+
+    if (showDeleteConfirm) {
+        ConfirmDeleteDialog(
+            title = "項目を削除",
+            message = "項目「${field.name.ifBlank { "(名称未設定)" }}」を削除します。",
+            onConfirm = {
+                showDeleteConfirm = false
+                onRemove()
+            },
+            onDismiss = { showDeleteConfirm = false },
+        )
     }
 }
 

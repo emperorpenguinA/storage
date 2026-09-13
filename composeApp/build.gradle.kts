@@ -100,6 +100,10 @@ kotlin {
             implementation(libs.androidx.credentials)
             implementation(libs.androidx.credentials.playServicesAuth)
             implementation(libs.play.services.auth)
+            // Photos picked from the device camera/gallery often store pixel data in landscape
+            // with an EXIF orientation tag saying how to rotate it for display — BitmapFactory
+            // ignores that tag, so without reading it ourselves those photos show sideways.
+            implementation(libs.androidx.exifinterface)
         }
         val wasmJsMain by getting {
             dependencies {

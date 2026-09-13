@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.mementostorage.app.di.AppContainer
 import com.mementostorage.app.domain.model.EntryAttachment
 import com.mementostorage.app.domain.model.Library
+import com.mementostorage.app.ui.components.ConfirmDeleteDialog
 import com.mementostorage.app.ui.components.DynamicFieldInput
 import kotlinx.coroutines.launch
 
@@ -52,6 +53,7 @@ fun EntryEditorScreen(
     var values by remember { mutableStateOf(mapOf<String, String>()) }
     var attachments by remember { mutableStateOf(listOf<EntryAttachment>()) }
     var ready by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(libraryId, entryId) {
         library = container.libraryRepository.getLibrary(libraryId)
@@ -121,15 +123,25 @@ fun EntryEditorScreen(
                 }) {
                     Text("保存")
                 }
-                TextButton(onClick = {
+                TextButton(onClick = { showDeleteConfirm = true }) {
+                    Text("このレコードを削除")
+                }
+            }
+        }
+
+        if (showDeleteConfirm) {
+            ConfirmDeleteDialog(
+                title = "レコードを削除",
+                message = "このレコードを削除します。元に戻せません。",
+                onConfirm = {
+                    showDeleteConfirm = false
                     scope.launch {
                         container.entryRepository.deleteEntry(currentEntryId)
                         onDone()
                     }
-                }) {
-                    Text("このレコードを削除")
-                }
-            }
+                },
+                onDismiss = { showDeleteConfirm = false },
+            )
         }
     }
 }
