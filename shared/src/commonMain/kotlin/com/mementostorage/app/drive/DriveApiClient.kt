@@ -29,8 +29,18 @@ private const val FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
  * [DriveFileListDto] declare. The default strict [Json] rejects any response containing an
  * undeclared key, which made every upload/list/create call here fail — see the identical bug
  * already fixed in GoogleAuthClient.wasmJs.kt.
+ *
+ * `encodeDefaults = true` matters for encoding [CreateFolderRequest]: its `mimeType` property
+ * always holds its own default value, and Json's default `encodeDefaults = false` silently
+ * omits any property left at its default — so the request body Drive received was just
+ * `{"name":"..."}` with no `mimeType` at all. Drive then created a plain file (defaulting to
+ * `application/octet-stream`) instead of a folder, which every later upload into it then
+ * rejected with a `parentNotAFolder` error.
  */
-private val driveJson = Json { ignoreUnknownKeys = true }
+private val driveJson = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+}
 
 /**
  * Decoding an error response (401/403/404/...) straight into [DriveFileDto]/[DriveFileListDto]
