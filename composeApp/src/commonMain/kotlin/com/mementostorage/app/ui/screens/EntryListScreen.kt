@@ -38,6 +38,8 @@ import com.mementostorage.app.domain.model.FieldType
 import com.mementostorage.app.domain.model.Library
 import com.mementostorage.app.domain.model.LibraryField
 import com.mementostorage.app.ui.components.PhotoThumbnail
+import com.mementostorage.app.ui.components.SortMenuButton
+import com.mementostorage.app.ui.components.SortOption
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,11 +56,18 @@ fun EntryListScreen(
 
     val entries by container.entryRepository.observeEntries(libraryId).collectAsState(initial = emptyList())
     var query by remember { mutableStateOf("") }
-    val filteredEntries = remember(entries, query) {
-        if (query.isBlank()) {
+    var sortOption by remember { mutableStateOf(SortOption.NAME) }
+    val filteredEntries = remember(entries, query, sortOption, library) {
+        val matching = if (query.isBlank()) {
             entries
         } else {
             entries.filter { entry -> entry.values.values.any { it.contains(query, ignoreCase = true) } }
+        }
+        val primaryFieldId = library?.fields?.minByOrNull { it.position }?.id
+        when (sortOption) {
+            SortOption.NAME -> matching.sortedBy { entry -> primaryFieldId?.let { entry.values[it] }.orEmpty() }
+            SortOption.UPDATED_DESC -> matching.sortedByDescending { it.updatedAt }
+            SortOption.CREATED_DESC -> matching.sortedByDescending { it.createdAt }
         }
     }
 
@@ -70,6 +79,7 @@ fun EntryListScreen(
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る") }
                 },
                 actions = {
+                    SortMenuButton(selected = sortOption, onSelect = { sortOption = it })
                     IconButton(onClick = onEditSchema) { Icon(Icons.Default.Settings, contentDescription = "項目を編集") }
                 },
             )

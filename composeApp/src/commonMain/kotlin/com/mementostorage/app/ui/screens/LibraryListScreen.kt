@@ -24,10 +24,15 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mementostorage.app.di.AppContainer
 import com.mementostorage.app.domain.model.Library
+import com.mementostorage.app.ui.components.SortMenuButton
+import com.mementostorage.app.ui.components.SortOption
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,12 +44,21 @@ fun LibraryListScreen(
     onOpenSettings: () -> Unit,
 ) {
     val libraries by container.libraryRepository.observeLibraries().collectAsState(initial = emptyList())
+    var sortOption by remember { mutableStateOf(SortOption.NAME) }
+    val sortedLibraries = remember(libraries, sortOption) {
+        when (sortOption) {
+            SortOption.NAME -> libraries.sortedBy { it.name }
+            SortOption.UPDATED_DESC -> libraries.sortedByDescending { it.updatedAt }
+            SortOption.CREATED_DESC -> libraries.sortedByDescending { it.createdAt }
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("マイライブラリ") },
                 actions = {
+                    SortMenuButton(selected = sortOption, onSelect = { sortOption = it })
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "設定")
                     }
@@ -57,7 +71,7 @@ fun LibraryListScreen(
             }
         },
     ) { padding ->
-        if (libraries.isEmpty()) {
+        if (sortedLibraries.isEmpty()) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
                 verticalArrangement = Arrangement.Center,
@@ -69,7 +83,7 @@ fun LibraryListScreen(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(vertical = 8.dp),
             ) {
-                items(libraries, key = { it.id }) { library ->
+                items(sortedLibraries, key = { it.id }) { library ->
                     LibraryRow(library = library, onOpen = { onOpenLibrary(library.id) }, onEdit = { onEditLibrary(library.id) })
                 }
             }

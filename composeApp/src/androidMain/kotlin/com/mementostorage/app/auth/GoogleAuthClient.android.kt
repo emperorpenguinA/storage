@@ -7,6 +7,7 @@ import androidx.activity.result.ActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
@@ -51,6 +52,24 @@ class AndroidGoogleAuthClient(context: Context) : GoogleAuthClient {
         _authState.value = GoogleAuthState(isSignedIn = true, accountEmail = _authState.value.accountEmail)
     }
 
+    /**
+     * Checks, without ever showing UI, whether Google Play Services already has a valid
+     * `drive.file` grant for this app from a previous sign-in — if so, restores [authState] to
+     * signed-in automatically. Called once at app startup so the user isn't asked to sign in
+     * again every launch (unlike a fresh grant, this never has a resolution to show, so
+     * [requestAuthorization] just returns the token immediately or throws).
+     */
+    suspend fun tryRestoreSignInSilently() {
+        val request = AuthorizationRequest.builder()
+            .setRequestedScopes(listOf(Scope(DRIVE_FILE_SCOPE)))
+            .build()
+        runCatching { requestAuthorization(request, allowResolution = false) }
+            .onSuccess { result ->
+                cachedToken = result.accessToken
+                _authState.value = GoogleAuthState(isSignedIn = true, accountEmail = _authState.value.accountEmail)
+            }
+    }
+
     override suspend fun signOut() {
         cachedToken = null
         _authState.value = GoogleAuthState()
@@ -68,12 +87,16 @@ class AndroidGoogleAuthClient(context: Context) : GoogleAuthClient {
         }.getOrNull() ?: cachedToken
     }
 
-    private suspend fun requestAuthorization(request: AuthorizationRequest): AuthorizationResult =
+    private suspend fun requestAuthorization(request: AuthorizationRequest, allowResolution: Boolean = true): AuthorizationResult =
         suspendCancellableCoroutine { continuation ->
             authorizationClient.authorize(request)
                 .addOnSuccessListener { authResult ->
                     val pendingIntent = authResult.pendingIntent
                     if (authResult.hasResolution() && pendingIntent != null) {
+                        if (!allowResolution) {
+                            continuation.resumeWithException(IllegalStateException("Sign-in requires user interaction"))
+                            return@addOnSuccessListener
+                        }
                         pendingContinuation = continuation
                         val resolve = launchResolution
                         if (resolve == null) {
@@ -109,5 +132,6 @@ actual fun rememberGoogleAuthClient(): GoogleAuthClient {
         client.onAuthorizationActivityResult(result)
     }
     client.launchResolution = { launcher.launch(it) }
+    LaunchedEffect(Unit) { client.tryRestoreSignInSilently() }
     return client
 }
