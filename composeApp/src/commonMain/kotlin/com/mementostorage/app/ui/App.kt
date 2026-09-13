@@ -28,7 +28,18 @@ fun App() {
             val authClient = rememberGoogleAuthClient()
             val container = rememberAppContainer(authClient)
 
-            var backStack by remember { mutableStateOf(listOf<Screen>(Screen.LibraryList)) }
+            // A web sign-in redirect reloads the whole page, wiping this in-memory back stack —
+            // resumedFromSignInRedirect lets us land back on Settings instead of silently
+            // resetting to the app's normal starting screen right after the user logs in.
+            var backStack by remember {
+                mutableStateOf(
+                    if (authClient.resumedFromSignInRedirect) {
+                        listOf(Screen.LibraryList, Screen.Settings)
+                    } else {
+                        listOf(Screen.LibraryList)
+                    },
+                )
+            }
             fun push(screen: Screen) {
                 backStack = backStack + screen
             }

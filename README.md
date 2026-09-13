@@ -221,9 +221,15 @@ Android はシステムの写真ピッカー（`ActivityResultContracts.GetConte
    - 「承認済みのリダイレクト URI」に、Web アプリを配信する URL を追加
      （開発中は `./gradlew :composeApp:wasmJsBrowserDevelopmentRun` が使うローカルサーバーの URL。
      本番配信する場合はそのドメインの URL も追加）
-   - 発行された「クライアント ID」（`xxxxx.apps.googleusercontent.com` の形式）を、
+   - 発行された「クライアント ID」（`xxxxx.apps.googleusercontent.com` の形式）と
+     「クライアント シークレット」の両方を、
      `composeApp/src/commonMain/kotlin/com/mementostorage/app/auth/GoogleOAuthConfig.kt` の
-     `webClientId` に貼り付ける
+     `webClientId` / `webClientSecret` に貼り付ける
+     （Google は「ウェブ アプリケーション」タイプのクライアントに対しては、PKCE を使っていても
+     トークン交換時にクライアント シークレットを要求します。このシークレットはビルドされた
+     wasmJs のバンドルにそのまま埋め込まれるため、厳密な意味での「秘密」にはなりません。
+     `drive.file` スコープとリダイレクト URI の許可リストによるアクセス制限が実質的な防御線に
+     なるので、このアプリは個人利用・限定公開を前提としてください）
 
 Web 版は Google の JS SDK（Google Identity Services）を読み込まず、`window.location` による
 フルページリダイレクトだけで完結する **OAuth 2.0 Authorization Code + PKCE フロー**を自前実装しています
@@ -231,6 +237,11 @@ Web 版は Google の JS SDK（Google Identity Services）を読み込まず、`
 PKCE verifier・アクセストークン・リフレッシュトークンを保存し、リダイレクトで戻ってきたページの
 `?code=...` を読み取ってトークンに交換します。PKCE の `code_challenge_method` は WebCrypto
 連携を避けるため `plain` を使っています（後述の拡張候補）。
+
+なお、フルページリダイレクトを使う都合上、ログイン操作の前後でページ全体がリロードされて
+アプリの画面遷移の状態が一度失われます。ログインボタンを押した後は自動的に設定画面へ戻る
+ようにしてありますが（`GoogleAuthClient.resumedFromSignInRedirect` で判定）、通常のページ
+更新（F5 など）とは異なる特殊な遷移である点は把握しておいてください。
 
 ## この環境で検証できたこと・できなかったこと
 
@@ -262,6 +273,17 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
   `:shared:wasmJsMain` の依存関係解決に失敗する問題（2.1.0 以降へ更新して解消）
 - サンドボックス環境の都合で `settings.gradle.kts` が `google()` の代わりに
   `maven("https://maven.google.com")` を使っていた点（標準の `google()` に戻し済み）
+- Web 版の Google ログインで、認可コードをアクセストークンに交換する際に
+  `kotlinx.serialization.json.Json` の**デフォルト（厳格）設定**で応答をデコードしていたため、
+  Google の実際のトークン応答に含まれる `scope`／`token_type` など未宣言のフィールドで
+  デコードが必ず失敗し、ログイン処理自体は完了しているのに認証状態が一切更新されない問題
+  （`ignoreUnknownKeys = true` の `Json` インスタンスに変更して解消。あわせて、Google が
+  「ウェブ アプリケーション」タイプのクライアントに対してはトークン交換時にクライアント
+  シークレットを要求する点への対応漏れも修正し、失敗時にエラーメッセージを設定画面に表示する
+  ようにしました）
+- Web 版はログインがフルページリダイレクトを伴うため、ログイン後にページが再読み込みされて
+  画面遷移の状態（設定画面を開いていたこと）が失われ、ライブラリ一覧画面に戻ってしまう問題
+  （リダイレクトから復帰したことを検知して、起動時に設定画面へ自動遷移するよう修正）
 
 これらを経て、**Android Studio 上での実機ビルド（`./gradlew build` 相当）が成功することを確認済み**です。
 一方で、次の点はビルド成功の確認どまりで、実際の動作までは未確認です。

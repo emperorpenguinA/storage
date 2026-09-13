@@ -34,6 +34,7 @@ class AndroidGoogleAuthClient(context: Context) : GoogleAuthClient {
     private val authorizationClient = Identity.getAuthorizationClient(context)
     private val _authState = MutableStateFlow(GoogleAuthState())
     override val authState: StateFlow<GoogleAuthState> = _authState
+    override val resumedFromSignInRedirect: Boolean = false
 
     private var cachedToken: String? = null
     private var pendingContinuation: CancellableContinuation<AuthorizationResult>? = null

@@ -143,6 +143,10 @@ fun SettingsScreen(
                 Spacer(Modifier.height(12.dp))
                 Text(it)
             }
+            authState.authError?.let {
+                Spacer(Modifier.height(12.dp))
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
         }
     }
 }

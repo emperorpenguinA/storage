@@ -33,6 +33,15 @@ private const val KEY_EMAIL = "memento_storage.google.email"
 private const val KEY_PKCE_VERIFIER = "memento_storage.google.pkce_verifier"
 
 /**
+ * Google's actual token/userinfo responses carry several fields (`scope`, `token_type`,
+ * `id_token`, ...) beyond what [TokenResponse]/[UserInfoResponse] declare. Decoding with the
+ * default strict [Json] rejects any response containing an undeclared key, which made every
+ * sign-in silently fail right after the user granted consent — this lenient instance is what
+ * [exchangeCodeForToken], [refreshAccessToken] and [fetchAccountEmail] must decode with instead.
+ */
+private val lenientJson = Json { ignoreUnknownKeys = true }
+
+/**
  * Signs in via Google's browser OAuth 2.0 "Authorization Code with PKCE" flow using a full
  * page redirect: no Google JS SDK is loaded, so this only relies on `window.location` and a
  * plain POST to Google's token endpoint (both plain, well-typed APIs from kotlinx-browser /
@@ -45,6 +54,11 @@ class WasmJsGoogleAuthClient(private val httpClient: HttpClient) : GoogleAuthCli
     private val _authState = MutableStateFlow(loadPersistedState())
     override val authState: StateFlow<GoogleAuthState> = _authState
 
+    // Computed once, synchronously, at construction — before completePendingSignInIfAny()
+    // (which runs asynchronously from a LaunchedEffect) has a chance to consume the verifier.
+    override val resumedFromSignInRedirect: Boolean =
+        window.location.search.contains("code=") && localStorage.getItem(KEY_PKCE_VERIFIER) != null
+
     suspend fun completePendingSignInIfAny() {
         val search = window.location.search
         if (search.isEmpty() || !search.contains("code=")) return
@@ -54,9 +68,19 @@ class WasmJsGoogleAuthClient(private val httpClient: HttpClient) : GoogleAuthCli
 
         runCatching { exchangeCodeForToken(code, verifier) }
             .onSuccess { persistTokenResponse(it) }
+            .onFailure { error ->
+                _authState.value = _authState.value.copy(
+                    authError = "ログインに失敗しました: ${error.message}",
+                )
+            }
+
+        // Drops the one-time-use `?code=...` (and friends) from the address bar so a manual
+        // reload of this same URL doesn't look like a stuck/repeating sign-in attempt.
+        window.history.replaceState(null, "", redirectUri())
     }
 
     override suspend fun signIn(): Result<Unit> = runCatching {
+        _authState.value = _authState.value.copy(authError = null)
         val verifier = randomVerifier()
         localStorage.setItem(KEY_PKCE_VERIFIER, verifier)
         val redirectUri = redirectUri()
@@ -102,13 +126,16 @@ class WasmJsGoogleAuthClient(private val httpClient: HttpClient) : GoogleAuthCli
             url = TOKEN_ENDPOINT,
             formParameters = Parameters.build {
                 append("client_id", GoogleOAuthConfig.webClientId)
+                // Required by Google for "Web application"-type clients even with PKCE — see
+                // the tradeoff note on GoogleOAuthConfig.webClientSecret.
+                append("client_secret", GoogleOAuthConfig.webClientSecret)
                 append("grant_type", "authorization_code")
                 append("code", code)
                 append("code_verifier", verifier)
                 append("redirect_uri", redirectUri())
             },
         )
-        return Json.decodeFromString(TokenResponse.serializer(), response.bodyAsText())
+        return lenientJson.decodeFromString(TokenResponse.serializer(), response.bodyAsText())
     }
 
     private suspend fun refreshAccessToken(refreshToken: String): TokenResponse {
@@ -116,11 +143,12 @@ class WasmJsGoogleAuthClient(private val httpClient: HttpClient) : GoogleAuthCli
             url = TOKEN_ENDPOINT,
             formParameters = Parameters.build {
                 append("client_id", GoogleOAuthConfig.webClientId)
+                append("client_secret", GoogleOAuthConfig.webClientSecret)
                 append("grant_type", "refresh_token")
                 append("refresh_token", refreshToken)
             },
         )
-        return Json.decodeFromString(TokenResponse.serializer(), response.bodyAsText())
+        return lenientJson.decodeFromString(TokenResponse.serializer(), response.bodyAsText())
     }
 
     private suspend fun persistTokenResponse(tokenResponse: TokenResponse) {
@@ -138,7 +166,7 @@ class WasmJsGoogleAuthClient(private val httpClient: HttpClient) : GoogleAuthCli
         val response = httpClient.get(USERINFO_ENDPOINT) {
             header("Authorization", "Bearer $accessToken")
         }
-        return Json.decodeFromString(UserInfoResponse.serializer(), response.bodyAsText()).email
+        return lenientJson.decodeFromString(UserInfoResponse.serializer(), response.bodyAsText()).email
     }
 
     private fun redirectUri(): String = window.location.origin + window.location.pathname
