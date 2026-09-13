@@ -101,6 +101,8 @@ fun DynamicFieldInput(
 
         FieldType.CHOICE -> ChoiceFieldInput(field = field, value = value, onValueChange = onValueChange)
 
+        FieldType.CURRENCY -> CurrencyFieldInput(field = field, value = value, onValueChange = onValueChange)
+
         FieldType.PHOTO -> PhotoFieldInput(
             field = field,
             value = value,
@@ -197,6 +199,71 @@ private fun ChoiceFieldInput(field: LibraryField, value: String, onValueChange: 
                         expanded = false
                     },
                 )
+            }
+        }
+    }
+}
+
+/** Default units offered when a CURRENCY field was created without configuring its own list. */
+private val DEFAULT_CURRENCY_UNITS = listOf("円", "ドル", "ユーロ")
+
+/** The stored value packs both parts as "amount|unit" so a single string field can hold both. */
+private const val CURRENCY_VALUE_SEPARATOR = "|"
+
+private fun String.toCurrencyParts(units: List<String>): Pair<String, String> {
+    val separatorIndex = lastIndexOf(CURRENCY_VALUE_SEPARATOR)
+    return if (separatorIndex >= 0) {
+        substring(0, separatorIndex) to substring(separatorIndex + 1)
+    } else {
+        this to units.first()
+    }
+}
+
+private fun encodeCurrencyValue(amount: String, unit: String): String = "$amount$CURRENCY_VALUE_SEPARATOR$unit"
+
+@Composable
+private fun CurrencyFieldInput(field: LibraryField, value: String, onValueChange: (String) -> Unit) {
+    val units = field.options.ifEmpty { DEFAULT_CURRENCY_UNITS }
+    val (amountText, selectedUnit) = remember(value, units) { value.toCurrencyParts(units) }
+    var unitMenuExpanded by remember { mutableStateOf(false) }
+
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = amountText,
+            onValueChange = { input ->
+                if (input.isEmpty() || input.toDoubleOrNull() != null) {
+                    onValueChange(encodeCurrencyValue(input, selectedUnit))
+                }
+            },
+            label = { Text(field.name) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(8.dp))
+        Box(modifier = Modifier.width(110.dp)) {
+            OutlinedTextField(
+                value = selectedUnit,
+                onValueChange = {},
+                readOnly = true,
+                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable { unitMenuExpanded = true },
+            )
+            DropdownMenu(expanded = unitMenuExpanded, onDismissRequest = { unitMenuExpanded = false }) {
+                units.forEach { unit ->
+                    DropdownMenuItem(
+                        text = { Text(unit) },
+                        onClick = {
+                            onValueChange(encodeCurrencyValue(amountText, unit))
+                            unitMenuExpanded = false
+                        },
+                    )
+                }
             }
         }
     }

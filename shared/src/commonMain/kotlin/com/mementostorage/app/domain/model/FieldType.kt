@@ -12,7 +12,8 @@ enum class FieldType {
     BOOLEAN,
     CHOICE,
     LINK,
-    PHOTO;
+    PHOTO,
+    CURRENCY;
 
     companion object {
         fun fromStorageName(name: String): FieldType =

@@ -36,6 +36,7 @@ import com.mementostorage.app.di.AppContainer
 import com.mementostorage.app.domain.model.Entry
 import com.mementostorage.app.domain.model.FieldType
 import com.mementostorage.app.domain.model.Library
+import com.mementostorage.app.domain.model.LibraryField
 import com.mementostorage.app.ui.components.PhotoThumbnail
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,9 +117,13 @@ fun EntryListScreen(
 private fun EntryRow(container: AppContainer, entry: Entry, library: Library, onClick: () -> Unit) {
     val sortedFields = library.fields.sortedBy { it.position }
     val primaryField = sortedFields.firstOrNull()
-    val title = primaryField?.let { entry.values[it.id] }?.takeIf { it.isNotBlank() } ?: "(無題)"
+    val title = primaryField
+        ?.let { field -> entry.values[field.id]?.let { field.formatValueForDisplay(it) } }
+        ?.takeIf { it.isNotBlank() } ?: "(無題)"
     val subtitle = sortedFields.drop(1).take(2)
-        .mapNotNull { field -> entry.values[field.id]?.takeIf { it.isNotBlank() }?.let { "${field.name}: $it" } }
+        .mapNotNull { field ->
+            entry.values[field.id]?.takeIf { it.isNotBlank() }?.let { "${field.name}: ${field.formatValueForDisplay(it)}" }
+        }
         .joinToString(" ・ ")
     val photoField = sortedFields.firstOrNull { it.type == FieldType.PHOTO }
     val photoAttachment = photoField
@@ -136,5 +141,19 @@ private fun EntryRow(container: AppContainer, entry: Entry, library: Library, on
             } else null,
             modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         )
+    }
+}
+
+/**
+ * A CURRENCY field's raw value packs "amount|unit" into one string (see DynamicFieldInput's
+ * CurrencyFieldInput) — render it as "amount unit" instead of the raw separator.
+ */
+private fun LibraryField.formatValueForDisplay(rawValue: String): String {
+    if (type != FieldType.CURRENCY) return rawValue
+    val separatorIndex = rawValue.lastIndexOf('|')
+    return if (separatorIndex >= 0) {
+        "${rawValue.substring(0, separatorIndex)} ${rawValue.substring(separatorIndex + 1)}"
+    } else {
+        rawValue
     }
 }

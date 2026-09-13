@@ -19,8 +19,8 @@ Kotlin Multiplatform + Compose Multiplatform で **Android アプリと Web ア�
 
 ## できること
 
-- 「ライブラリ」（= テーブル）を自由に作成し、テキスト・長文・数値・日付・チェックボックス・選択肢・リンク・写真の
-  8種類のフィールドでスキーマを設計
+- 「ライブラリ」（= テーブル）を自由に作成し、テキスト・長文・数値・日付・チェックボックス・選択肢・リンク・写真・金額の
+  9種類のフィールドでスキーマを設計（金額フィールドは選択肢と同様に単位（円・ドルなど）をカンマ区切りで設定可能）
 - ライブラリごとにレコード（行）を追加・編集・削除・検索（現状は全フィールドを対象にした部分一致検索）
 - Google アカウントでログインし、
   - ライブラリ／レコードのバックアップを Drive 上の `MementoStorageApp` フォルダに JSON として保存
@@ -100,8 +100,9 @@ Kotlin/Wasm との組み合わせでの検証が難しかったため、個人�
 - **`Library`**: 1つのライブラリ（テーブル）。`id`・`name`・`description`・`iconKey` と、
   スキーマを表す `fields: List<LibraryField>` を持つ
 - **`LibraryField`**: ライブラリの1カラム。`type: FieldType`（`TEXT` / `LONG_TEXT` / `NUMBER` /
-  `DATE` / `BOOLEAN` / `CHOICE` / `LINK` / `PHOTO`）、並び順を表す `position`、`isRequired`、
-  `CHOICE` 用の選択肢リスト `options` を持つ
+  `DATE` / `BOOLEAN` / `CHOICE` / `LINK` / `PHOTO` / `CURRENCY`）、並び順を表す `position`、
+  `isRequired`、`CHOICE`/`CURRENCY` 用のリスト `options`（`CURRENCY` の場合は選べる単位の一覧）を持つ。
+  `CURRENCY` の値は `Entry.values` の1文字列に `"金額|単位"` の形式で両方をまとめて保持する
 - **`Entry`**: 1件のレコード。`values: Map<String, String>`（キーは `LibraryField.id`）に
   実際の入力値を保持する。値の形式はフィールド種別によって異なり、`BOOLEAN` は `"true"/"false"`、
   `PHOTO` は後述の `EntryAttachment.id` を文字列として格納する

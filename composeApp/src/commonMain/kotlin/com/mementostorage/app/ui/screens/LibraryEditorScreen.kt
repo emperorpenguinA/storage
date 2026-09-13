@@ -229,11 +229,11 @@ private fun FieldDraftRow(field: FieldDraft, onChange: (FieldDraft) -> Unit, onR
                 }
             }
 
-            if (field.type == FieldType.CHOICE) {
+            if (field.type == FieldType.CHOICE || field.type == FieldType.CURRENCY) {
                 OutlinedTextField(
                     value = field.optionsText,
                     onValueChange = { onChange(field.copy(optionsText = it)) },
-                    label = { Text("選択肢（カンマ区切り）") },
+                    label = { Text(if (field.type == FieldType.CURRENCY) "通貨単位（カンマ区切り）" else "選択肢（カンマ区切り）") },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -255,4 +255,5 @@ private fun FieldType.label(): String = when (this) {
     FieldType.CHOICE -> "選択肢"
     FieldType.LINK -> "リンク"
     FieldType.PHOTO -> "写真"
+    FieldType.CURRENCY -> "金額"
 }
