@@ -92,25 +92,51 @@ class DriveApiClient(
         return list.files.firstOrNull()?.toDomain()
     }
 
-    /** Finds (or creates, on first run) the single folder MementoStorage keeps all of its data in. */
-    suspend fun ensureAppFolder(folderName: String = "MementoStorageApp"): String {
+    private suspend fun findAppFolderByName(name: String): DriveFile? {
         val token = authToken()
-        val query = "mimeType = '$FOLDER_MIME_TYPE' and name = '${folderName.escapeForDriveQuery()}' and 'root' in parents and trashed = false"
+        val query = "mimeType = '$FOLDER_MIME_TYPE' and name = '${name.escapeForDriveQuery()}' and 'root' in parents and trashed = false"
         val response: HttpResponse = httpClient.get(DRIVE_FILES_URL) {
             header(HttpHeaders.Authorization, "Bearer $token")
             parameter("q", query)
             parameter("fields", "files(id,name,mimeType)")
             parameter("spaces", "drive")
         }
-        val existing = driveJson.decodeFromString(DriveFileListDto.serializer(), response.textOrThrow()).files.firstOrNull()
-        if (existing != null) return existing.id
+        return driveJson.decodeFromString(DriveFileListDto.serializer(), response.textOrThrow()).files.firstOrNull()?.toDomain()
+    }
 
+    /**
+     * Finds (or creates, on first run) the single folder this app keeps all of its data in.
+     *
+     * [legacyFolderNames] lists names this folder was called under an earlier version of the
+     * app (e.g. before a rename of the app itself). If [folderName] isn't found but one of
+     * these is, that folder is renamed in place rather than leaving it behind and creating a
+     * fresh, empty-looking [folderName] folder that silently orphans an existing backup.
+     */
+    suspend fun ensureAppFolder(folderName: String = "ストレージ", legacyFolderNames: List<String> = listOf("MementoStorageApp")): String {
+        findAppFolderByName(folderName)?.let { return it.id }
+
+        for (legacyName in legacyFolderNames) {
+            val legacyFolder = findAppFolderByName(legacyName) ?: continue
+            return renameFile(legacyFolder.id, folderName).id
+        }
+
+        val token = authToken()
         val createResponse: HttpResponse = httpClient.post(DRIVE_FILES_URL) {
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
             setBody(driveJson.encodeToString(CreateFolderRequest.serializer(), CreateFolderRequest(name = folderName)))
         }
         return driveJson.decodeFromString(DriveFileDto.serializer(), createResponse.textOrThrow()).id
+    }
+
+    suspend fun renameFile(fileId: String, newName: String): DriveFile {
+        val token = authToken()
+        val response: HttpResponse = httpClient.patch("$DRIVE_FILES_URL/$fileId") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"${newName.escapeForJson()}"}""")
+        }
+        return driveJson.decodeFromString(DriveFileDto.serializer(), response.textOrThrow()).toDomain()
     }
 
     suspend fun uploadText(parentId: String, fileName: String, mimeType: String, content: String, existingFileId: String? = null): DriveFile =

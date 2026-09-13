@@ -26,7 +26,7 @@ Kotlin Multiplatform + Compose Multiplatform で **Android アプリと Web ア�
 - ライブラリ一覧・レコード一覧は並び替え可能（名前順・更新日時順・作成日時順、デフォルトは名前順）
 - 項目・レコード・ライブラリの削除はいずれも確認ダイアログを経由（誤操作防止）
 - Google アカウントでログインし、
-  - ライブラリ／レコードのバックアップを Drive 上の `MementoStorageApp` フォルダに JSON として保存
+  - ライブラリ／レコードのバックアップを Drive 上の `ストレージ` フォルダに JSON として保存
   - 別端末・Web でそのバックアップから復元
   - 写真フィールドに添付したファイルを Drive にアップロード
 - Android・Web のどちらでも同一の Compose UI コードで動作（画面の見た目・操作感は共通）
@@ -146,10 +146,12 @@ Android はシステムの写真ピッカー（`ActivityResultContracts.GetConte
 - **`DriveApiClient`**: Google Drive REST API v3 (`https://www.googleapis.com/drive/v3/...`) を
   Ktor で直接呼び出す薄いラッパー。`drive.file` スコープ（このアプリが作成したファイルにのみ
   アクセスできる、最も権限の狭いスコープ）のアクセストークンを前提に、
-  - `ensureAppFolder()`: `MementoStorageApp` という名前のフォルダを検索し、無ければ作成
+  - `ensureAppFolder()`: `ストレージ`（アプリの表示名）という名前のフォルダを検索し、無ければ
+    作成。旧名 `MementoStorageApp` のフォルダが見つかった場合はそれを新しい名前に
+    リネームして使い続ける（アプリ名変更前からの既存バックアップを見失わないため）
   - `uploadText` / `uploadBytes`: multipart/related 形式でファイルをアップロード（新規作成・上書き両対応）
   - `downloadBytes` / `downloadText`: ファイル内容を取得
-  - `findFileByName` / `deleteFile`: 検索・削除
+  - `findFileByName` / `deleteFile` / `renameFile`: 検索・削除・リネーム
 
   を提供します。アクセストークンの取得方法自体は関知せず、`DriveAuthTokenProvider`
   という interface 経由でプラットフォーム側（`composeApp` の `GoogleAuthClient`）から受け取ります。
@@ -420,6 +422,20 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
   なお、この不具合の影響で既に Drive 上に保存されてしまっている古い `backup.json` は、
   この修正を適用しただけでは直らないため、**一度「今すぐバックアップ」をもう一度実行して
   `backup.json` を新しい内容で上書きする必要があります**
+- Drive 上のバックアップ用フォルダ名が、アプリの表示名を「ストレージ」に変更した後も
+  古い名前 `MementoStorageApp` のままだった問題。`DriveApiClient.ensureAppFolder()` の
+  既定フォルダ名がハードコードされたままだったのが原因です。既定値を `ストレージ` に
+  更新しましたが、単純に名前を変えるだけだと、この不具合を過去に踏んだユーザー（今回の
+  ユーザーを含む）が次にバックアップ／復元したときに `MementoStorageApp` フォルダが
+  見つからず、中身が空の新しい `ストレージ` フォルダを新規作成してしまい、既存のバックアップを
+  見失う（人には「消えた」ように見える）事故になります。そのため `ensureAppFolder()` に
+  「新しい名前のフォルダが無く、かつ旧名 (`MementoStorageApp`) のフォルダが見つかった場合は、
+  新規作成せずそのフォルダ自体を新しい名前にリネームして使い続ける」という移行ロジックを
+  追加しました。`DriveApiClient` に新設した `renameFile()`（`PATCH` でファイル名のみ更新）を
+  使っています。この修正は `ktor-client-mock` で Drive API を模擬したテストハーネスで、
+  (1) 旧名フォルダが存在する場合はリネームのみが呼ばれ新規作成は呼ばれないこと、
+  (2) 旧名フォルダも新名フォルダも無い（新規インストール）場合は新規作成が呼ばれることの
+  両方を確認済みです
 
 これらを経て、**Android Studio 上での実機ビルド（`./gradlew build` 相当）が成功することを確認済み**です。
 一方で、次の点はビルド成功の確認どまりで、実際の動作までは未確認です。

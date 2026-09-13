@@ -18,8 +18,9 @@ private const val BACKUP_FILE_NAME = "backup.json"
 
 /**
  * Backs up the local database (libraries/fields/entries/attachment metadata, as one JSON
- * document) and any not-yet-uploaded attachment bytes to the user's "MementoStorageApp"
- * Drive folder, and can pull that same snapshot back down onto a new device.
+ * document) and any not-yet-uploaded attachment bytes to the app's own Drive folder (see
+ * [DriveApiClient.ensureAppFolder]), and can pull that same snapshot back down onto a new
+ * device.
  *
  * This is a manual, whole-snapshot sync (no per-field conflict resolution): the side that
  * backs up last wins for any library/entry both sides touched. That is enough for "my data
