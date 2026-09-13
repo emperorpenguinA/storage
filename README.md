@@ -92,9 +92,10 @@ Kotlin/Wasm との組み合わせでの検証が難しかったため、個人�
 `MutableStateFlow<AppDataSnapshot>` として持ちながら変更のたびに `localStorage` へ書き戻します。
 この同じ `AppDataSnapshot` 型は Google Drive へのバックアップ（`backup.json`）にもそのまま使われています。
 
-同様の理由で、Web で選択した写真のバイト列は
-**Drive への同期が終わるまではメモリ上にのみ保持**されます（`WasmJsAttachmentFileStore`。
-ページを再読み込みすると失われます。IndexedDB を使った永続化は自然な次の拡張ポイントです）。
+Web で選択・ダウンロードした写真のバイト列は `WasmJsAttachmentFileStore` が IndexedDB
+（base64 文字列として1レコード1キーで格納）に保存しており、ページを再読み込みしても失われません。
+以前は名前の通りメモリ上の `Map` にのみ保持していたため、Drive から復元した写真は再読み込みのたびに
+毎回 Drive から再ダウンロードし直しになっていました（下記の既知バグ一覧を参照）。
 
 ## データモデル
 
@@ -110,7 +111,7 @@ Kotlin/Wasm との組み合わせでの検証が難しかったため、個人�
   実際の入力値を保持する。値の形式はフィールド種別によって異なり、`BOOLEAN` は `"true"/"false"`、
   `PHOTO` は後述の `EntryAttachment.id` を文字列として格納する
 - **`EntryAttachment`**: `PHOTO` フィールドに添付された1ファイル。ローカルの参照キー
-  （Android は実ファイルパス、Web はメモリ上のキー）である `localPath`、Drive アップロード後の
+  （Android は実ファイルパス、Web は IndexedDB のキー）である `localPath`、Drive アップロード後の
   `driveFileId`、同期状態を表す `syncState`（`PENDING` / `SYNCED` / `FAILED`）を持つ
 - **`DriveAccountSettings`**: 接続中の Google アカウントのメールアドレス、Drive 上のアプリ用
   フォルダ ID、最終同期日時を保持する設定値
@@ -379,6 +380,16 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
   `Surface` 経由の縮小描画（Web）で必要な解像度までしかデコードしない、`AppContainer` に
   セッション内で使い回すデコード結果のキャッシュ（`ImageBitmapCache`）を持たせる、という形で
   対応しました
+- Web 版で、Drive から復元した写真の読み込みが遅い（特にページを再読み込みした直後）問題。
+  `WasmJsAttachmentFileStore` が写真バイト列をプレーンな `Map`（メモリ上のみ）に保持していたため、
+  ページを再読み込みするたびに中身が消え、表示のたびに毎回 Drive から全データを再ダウンロード
+  し直す羽目になっていました（Android 版は `context.filesDir` に保存するため発生しません）。
+  IndexedDB を使った永続化に置き換え、書き込んだバイト列（base64 文字列として1レコード1キーで
+  格納）がページ再読み込み後も残るようにして解消しました。この修正は、実際に IndexedDB 部分
+  だけを切り出したスタンドアロンの wasmJs 実行ファイルをビルドし、ヘッドレス Chromium で
+  「バイト列を書き込む→ページを再読み込みする→同じキーで読み出す」という実際のブラウザ
+  再起動シナリオそのものを再現し、書き込んだバイト列が１バイトも欠けずに読み出せることを
+  確認して検証済みです
 
 これらを経て、**Android Studio 上での実機ビルド（`./gradlew build` 相当）が成功することを確認済み**です。
 一方で、次の点はビルド成功の確認どまりで、実際の動作までは未確認です。
@@ -389,8 +400,6 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
 
 ## 既知の制約
 
-- **Web での添付ファイルの一時性**: 写真を選択してから Drive への同期が完了するまでの間、
-  バイト列はブラウザのメモリ上にのみ存在します。ページを再読み込みすると選択し直しが必要です
 - **同期の競合解決**: 複数端末でほぼ同時に編集した場合、後からバックアップした側の内容で
   上書きされます（フィールド単位のマージは行いません）
 - **PKCE の強度**: Web 版 OAuth の `code_challenge_method` は `plain` を使用しています
@@ -403,7 +412,6 @@ PKCE verifier・アクセストークン・リフレッシュトークンを保�
 ## 今後の拡張候補
 
 - レコード一覧・編集画面へのソート/フィルタ強化、カテゴリ・タグ機能
-- Web 版で写真バイト列を IndexedDB に永続化
 - Web 版 PKCE の `code_challenge_method` を `plain` から `S256` に強化（WebCrypto 連携が必要）
 - Android のシステムバックボタン／ジェスチャー対応（`BackHandler` の追加）
 - レコードのフィールド間参照（Memento の「ルックアップ」フィールドに相当する機能）
