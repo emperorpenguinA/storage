@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material3.Checkbox
@@ -109,13 +110,22 @@ fun DynamicFieldInput(
 @Composable
 private fun ChoiceFieldInput(field: LibraryField, value: String, onValueChange: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = value.ifBlank { "選択してください" },
             onValueChange = {},
             readOnly = true,
             label = { Text(field.name) },
-            modifier = Modifier.fillMaxWidth().clickable { expanded = true },
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        // See the identical pattern in LibraryEditorScreen's field-type picker: a
+        // transparent overlay reliably catches the click, unlike a clickable modifier on
+        // the text field itself.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { expanded = true },
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             field.options.forEach { option ->

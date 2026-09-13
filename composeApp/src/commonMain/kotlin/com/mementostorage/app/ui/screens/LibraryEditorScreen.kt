@@ -191,14 +191,23 @@ private fun FieldDraftRow(field: FieldDraft, onChange: (FieldDraft) -> Unit, onR
                 }
             }
 
-            Box {
+            Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = field.type.label(),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("種類") },
                     trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth().clickable { typeMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                // A transparent layer on top of the text field, rather than a clickable
+                // modifier on the field itself: OutlinedTextField's own touch handling
+                // (for cursor placement) can otherwise swallow the click before it opens
+                // the menu, even when readOnly.
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable { typeMenuExpanded = true },
                 )
                 DropdownMenu(expanded = typeMenuExpanded, onDismissRequest = { typeMenuExpanded = false }) {
                     FieldType.entries.forEach { type ->
