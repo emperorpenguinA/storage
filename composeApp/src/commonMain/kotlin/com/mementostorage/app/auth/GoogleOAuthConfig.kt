@@ -19,5 +19,5 @@ package com.mementostorage.app.auth
  */
 object GoogleOAuthConfig {
     const val webClientId: String = "463986432173-41oqbp21q8uudbij4p0ug1gb283veh9a.apps.googleusercontent.com"
-    const val webClientSecret: String = "REPLACE_WITH_YOUR_WEB_CLIENT_SECRET"
+    const val webClientSecret: String = "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"
 }
