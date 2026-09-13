@@ -65,7 +65,10 @@ fun LibraryListScreen(
                 Text("まだライブラリがありません。右下の + から作成しましょう。")
             }
         } else {
-            LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(vertical = 8.dp),
+            ) {
                 items(libraries, key = { it.id }) { library ->
                     LibraryRow(library = library, onOpen = { onOpenLibrary(library.id) }, onEdit = { onEditLibrary(library.id) })
                 }
