@@ -81,8 +81,17 @@ fun PhotoThumbnail(
         // Decoding (and, on Android, the EXIF rotation fix-up) is CPU-bound work that would
         // otherwise run on the LaunchedEffect's default (main) dispatcher and visibly stall
         // scrolling as rows re-enter the LazyColumn's composed window.
-        val decoded = container.syncService.ensureAttachmentBytes(currentAttachment)
-            ?.let { bytes -> withContext(Dispatchers.Default) { decodeImageBitmapOrNull(bytes, maxDimensionPx) } }
+        suspend fun decode(bytes: ByteArray) = withContext(Dispatchers.Default) { decodeImageBitmapOrNull(bytes, maxDimensionPx) }
+
+        val firstBytes = container.syncService.ensureAttachmentBytes(currentAttachment)
+        var decoded = firstBytes?.let { decode(it) }
+        if (decoded == null && firstBytes != null) {
+            // We did get bytes but they failed to decode as an image -- most likely a stale
+            // local copy of a Drive error response that was mistakenly cached as if it were the
+            // real file before downloadBytes() started checking the response status. Re-fetch
+            // once from Drive instead of leaving the thumbnail permanently blank.
+            decoded = container.syncService.ensureAttachmentBytes(currentAttachment, forceRedownload = true)?.let { decode(it) }
+        }
         if (decoded != null) {
             container.imageBitmapCache.put(currentAttachment.id, maxDimensionPx, decoded)
         }

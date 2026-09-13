@@ -10,6 +10,7 @@ import com.mementostorage.app.domain.repository.DriveSettingsRepository
 import com.mementostorage.app.domain.repository.EntryRepository
 import com.mementostorage.app.domain.repository.LibraryRepository
 import com.mementostorage.app.util.nowEpochMillis
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 
@@ -74,15 +75,37 @@ class SyncService(
      * (updating [AttachmentRepository]'s stored `localPath`) if they aren't available on this
      * device yet — the normal case right after [restoreLatestBackup], since only the metadata
      * row is restored eagerly. Returns null if there's nothing to download from yet (no
-     * `driveFileId`, e.g. mid-upload) or the download itself fails (not signed in, offline, ...).
+     * `driveFileId`, e.g. mid-upload) or every download attempt fails (not signed in, offline,
+     * repeatedly rate-limited, ...).
+     *
+     * Set [forceRedownload] to skip the local cache and re-fetch from Drive even if a local
+     * copy exists — used to self-heal a copy that was cached before a download-error-checking
+     * bug was fixed (see [com.mementostorage.app.drive.DriveApiClient.downloadBytes]) and so
+     * never decodes as an image.
      */
-    suspend fun ensureAttachmentBytes(attachment: EntryAttachment): ByteArray? {
-        fileStore.readBytes(attachment.localPath)?.let { return it }
+    suspend fun ensureAttachmentBytes(attachment: EntryAttachment, forceRedownload: Boolean = false): ByteArray? {
+        if (!forceRedownload) {
+            fileStore.readBytes(attachment.localPath)?.let { return it }
+        }
         val driveFileId = attachment.driveFileId ?: return null
-        val bytes = runCatching { driveApiClient.downloadBytes(driveFileId) }.getOrNull() ?: return null
+        val bytes = downloadWithRetries(driveFileId) ?: return null
         val newLocalPath = fileStore.writeBytes(attachment.fileName, bytes)
         attachmentRepository.upsertAttachment(attachment.copy(localPath = newLocalPath))
         return bytes
+    }
+
+    /**
+     * A list screen's photo thumbnails all start downloading at once, so a transient failure
+     * (a momentary network hiccup, a rate-limit response on a burst of concurrent requests) is
+     * common enough to be worth a couple of quick retries rather than leaving that one thumbnail
+     * permanently blank until the next full app restart.
+     */
+    private suspend fun downloadWithRetries(fileId: String, attempts: Int = 3): ByteArray? {
+        repeat(attempts) { attempt ->
+            runCatching { driveApiClient.downloadBytes(fileId) }.getOrNull()?.let { return it }
+            if (attempt < attempts - 1) delay(500L * (attempt + 1))
+        }
+        return null
     }
 
     /**

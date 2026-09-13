@@ -16,6 +16,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -68,6 +70,11 @@ class DriveApiClient(
     private val httpClient: HttpClient,
     private val tokenProvider: DriveAuthTokenProvider,
 ) {
+    // A list screen can show many PHOTO thumbnails at once, each independently calling
+    // downloadBytes(); firing them all at the same instant risks Drive rate-limiting several
+    // of them, so cap how many of these (large, comparatively slow) downloads run at once.
+    private val downloadSemaphore = Semaphore(permits = 4)
+
     private suspend fun authToken(): String =
         tokenProvider.getAccessToken() ?: throw DriveAuthException("Not signed in to Google Drive")
 
@@ -148,10 +155,17 @@ class DriveApiClient(
 
     suspend fun downloadBytes(fileId: String): ByteArray {
         val token = authToken()
-        val response: HttpResponse = httpClient.get("$DRIVE_FILES_URL/$fileId") {
-            header(HttpHeaders.Authorization, "Bearer $token")
-            parameter("alt", "media")
+        val response: HttpResponse = downloadSemaphore.withPermit {
+            httpClient.get("$DRIVE_FILES_URL/$fileId") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                parameter("alt", "media")
+            }
         }
+        // Unlike the other calls in this class, this response was never run through
+        // textOrThrow(): an error response (429 rate-limited, 401 expired token, ...) was
+        // silently accepted as if its JSON error body were the file's actual bytes, which then
+        // got cached to disk/IndexedDB as a permanently-corrupt "photo" that never decodes.
+        check(response.status.isSuccess()) { "Google Drive がエラー応答を返しました (${response.status}): ${response.bodyAsText()}" }
         return response.body()
     }
 
