@@ -25,12 +25,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.mementostorage.app.di.AppContainer
 import com.mementostorage.app.domain.model.EntryAttachment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * A small square preview of a PHOTO field's attachment, loading and decoding its bytes lazily.
@@ -54,11 +57,36 @@ fun PhotoThumbnail(
 ) {
     var bitmap by remember(attachment?.id) { mutableStateOf<ImageBitmap?>(null) }
     var showFullScreen by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
 
-    LaunchedEffect(attachment?.id, attachment?.localPath) {
-        bitmap = attachment
-            ?.let { container.syncService.ensureAttachmentBytes(it) }
-            ?.let { decodeImageBitmapOrNull(it) }
+    // A little more than the on-screen size covers higher-density screens without decoding at
+    // full camera resolution just to shrink it back down; the enlarge dialog gets a generous
+    // cap of its own since it's meant to show real detail, not just a small preview.
+    val maxDimensionPx = remember(size, enlargeOnClick, density) {
+        val thumbnailPx = with(density) { (size.toPx() * 3).toInt() }.coerceAtLeast(96)
+        if (enlargeOnClick) maxOf(thumbnailPx, 1600) else thumbnailPx
+    }
+
+    LaunchedEffect(attachment?.id, attachment?.localPath, maxDimensionPx) {
+        val currentAttachment = attachment
+        if (currentAttachment == null) {
+            bitmap = null
+            return@LaunchedEffect
+        }
+        val cached = container.imageBitmapCache.get(currentAttachment.id, maxDimensionPx)
+        if (cached != null) {
+            bitmap = cached
+            return@LaunchedEffect
+        }
+        // Decoding (and, on Android, the EXIF rotation fix-up) is CPU-bound work that would
+        // otherwise run on the LaunchedEffect's default (main) dispatcher and visibly stall
+        // scrolling as rows re-enter the LazyColumn's composed window.
+        val decoded = container.syncService.ensureAttachmentBytes(currentAttachment)
+            ?.let { bytes -> withContext(Dispatchers.Default) { decodeImageBitmapOrNull(bytes, maxDimensionPx) } }
+        if (decoded != null) {
+            container.imageBitmapCache.put(currentAttachment.id, maxDimensionPx, decoded)
+        }
+        bitmap = decoded
     }
 
     val decoded = bitmap

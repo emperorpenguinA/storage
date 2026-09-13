@@ -8,10 +8,33 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.exifinterface.media.ExifInterface
 import java.io.ByteArrayInputStream
 
-actual fun decodeImageBitmapOrNull(bytes: ByteArray): ImageBitmap? = runCatching {
-    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@runCatching null
+actual fun decodeImageBitmapOrNull(bytes: ByteArray, maxDimensionPx: Int): ImageBitmap? = runCatching {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    val options = BitmapFactory.Options().apply {
+        inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxDimensionPx)
+    }
+    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return@runCatching null
     bitmap.rotatedForExifOrientation(bytes).asImageBitmap()
 }.getOrNull()
+
+/**
+ * Halves the decode resolution as many times as possible while staying at or above
+ * [maxDimensionPx] on both edges — the standard `BitmapFactory.Options.inSampleSize` recipe
+ * from Android's own "Loading Large Bitmaps Efficiently" guide. `inSampleSize` only accepts
+ * powers of two, and the decoder rounds it to the nearest valid value anyway.
+ */
+private fun calculateInSampleSize(width: Int, height: Int, maxDimensionPx: Int): Int {
+    var sampleSize = 1
+    var sampledWidth = width
+    var sampledHeight = height
+    while (sampledWidth / 2 >= maxDimensionPx && sampledHeight / 2 >= maxDimensionPx) {
+        sampledWidth /= 2
+        sampledHeight /= 2
+        sampleSize *= 2
+    }
+    return sampleSize
+}
 
 /**
  * Camera/gallery photos are frequently stored with their raw pixels in landscape plus an EXIF

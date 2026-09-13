@@ -8,6 +8,7 @@ import com.mementostorage.app.domain.repository.DriveSettingsRepository
 import com.mementostorage.app.domain.repository.EntryRepository
 import com.mementostorage.app.domain.repository.LibraryRepository
 import com.mementostorage.app.drive.SyncService
+import com.mementostorage.app.ui.components.ImageBitmapCache
 
 /** Everything a screen needs, built once per app launch and handed down via composition. */
 class AppContainer(
@@ -17,6 +18,7 @@ class AppContainer(
     val driveSettingsRepository: DriveSettingsRepository,
     val attachmentFileStore: AttachmentFileStore,
     val syncService: SyncService,
+    val imageBitmapCache: ImageBitmapCache = ImageBitmapCache(),
 )
 
 /** Wires up the platform-specific repository implementations described in shared/build.gradle.kts. */
