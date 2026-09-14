@@ -1,0 +1,54 @@
+CREATE TABLE Attachment (
+    id TEXT NOT NULL PRIMARY KEY,
+    entryId TEXT NOT NULL,
+    fieldId TEXT NOT NULL,
+    fileName TEXT NOT NULL,
+    localPath TEXT NOT NULL DEFAULT '',
+    mimeType TEXT NOT NULL,
+    driveFileId TEXT,
+    syncState TEXT NOT NULL DEFAULT 'PENDING',
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(entryId) REFERENCES Entry(id) ON DELETE CASCADE
+);
+
+CREATE INDEX Attachment_entryId ON Attachment(entryId);
+
+selectAttachmentsByEntry:
+SELECT * FROM Attachment WHERE entryId = ? ORDER BY createdAt ASC;
+
+selectAttachmentsByEntries:
+SELECT * FROM Attachment WHERE entryId IN ? ORDER BY createdAt ASC;
+
+selectAttachmentsByLibrary:
+SELECT Attachment.* FROM Attachment
+INNER JOIN Entry ON Attachment.entryId = Entry.id
+WHERE Entry.libraryId = ?
+ORDER BY Attachment.createdAt ASC;
+
+selectAttachmentById:
+SELECT * FROM Attachment WHERE id = ?;
+
+selectPendingAttachments:
+SELECT * FROM Attachment WHERE syncState != 'SYNCED';
+
+insertAttachment:
+INSERT INTO Attachment(id, entryId, fieldId, fileName, localPath, mimeType, driveFileId, syncState, createdAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateAttachmentSync:
+UPDATE Attachment
+SET driveFileId = ?, syncState = ?
+WHERE id = ?;
+
+deleteAttachmentById:
+DELETE FROM Attachment WHERE id = ?;
+
+upsertAttachment:
+INSERT INTO Attachment(id, entryId, fieldId, fileName, localPath, mimeType, driveFileId, syncState, createdAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    fileName = excluded.fileName,
+    localPath = excluded.localPath,
+    mimeType = excluded.mimeType,
+    driveFileId = excluded.driveFileId,
+    syncState = excluded.syncState;

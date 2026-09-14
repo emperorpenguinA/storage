@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ストレージ</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="favicon.png" />
+    <style>
+        /* overflow: hidden is required, not cosmetic — without it the browser lets the page
+           scroll natively whenever the canvas measures even slightly taller than the viewport,
+           which desyncs Skiko's click coordinate mapping from what's actually on screen (a
+           button can visually sit at the top of the viewport yet silently receive taps meant
+           for something else). Compose is expected to handle all scrolling internally
+           (see the verticalScroll() modifiers in the screens) instead. */
+        html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
+        #loading { font-family: sans-serif; padding: 24px; color: #444; }
+    </style>
+</head>
+<body>
+    <div id="loading">読み込み中…</div>
+    <script src="composeApp.js"></script>
+</body>
+</html>

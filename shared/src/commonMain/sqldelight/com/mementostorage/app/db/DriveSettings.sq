@@ -1,0 +1,20 @@
+CREATE TABLE DriveSettings (
+    id INTEGER NOT NULL PRIMARY KEY,
+    accountEmail TEXT,
+    rootFolderId TEXT,
+    lastSyncAt INTEGER
+);
+
+selectDriveSettings:
+SELECT * FROM DriveSettings WHERE id = 0;
+
+upsertDriveSettings:
+INSERT INTO DriveSettings(id, accountEmail, rootFolderId, lastSyncAt)
+VALUES (0, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    accountEmail = excluded.accountEmail,
+    rootFolderId = excluded.rootFolderId,
+    lastSyncAt = excluded.lastSyncAt;
+
+clearDriveSettings:
+DELETE FROM DriveSettings WHERE id = 0;

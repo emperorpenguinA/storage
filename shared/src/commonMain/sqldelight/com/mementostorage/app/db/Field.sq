@@ -1,0 +1,36 @@
+CREATE TABLE Field (
+    id TEXT NOT NULL PRIMARY KEY,
+    libraryId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    isRequired INTEGER NOT NULL DEFAULT 0,
+    optionsJson TEXT NOT NULL DEFAULT '[]',
+    FOREIGN KEY(libraryId) REFERENCES Library(id) ON DELETE CASCADE
+);
+
+CREATE INDEX Field_libraryId ON Field(libraryId);
+
+selectFieldsByLibrary:
+SELECT * FROM Field WHERE libraryId = ? ORDER BY position ASC;
+
+selectAllFields:
+SELECT * FROM Field ORDER BY libraryId ASC, position ASC;
+
+selectFieldById:
+SELECT * FROM Field WHERE id = ?;
+
+insertField:
+INSERT INTO Field(id, libraryId, name, type, position, isRequired, optionsJson)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+updateField:
+UPDATE Field
+SET name = ?, type = ?, position = ?, isRequired = ?, optionsJson = ?
+WHERE id = ?;
+
+deleteFieldById:
+DELETE FROM Field WHERE id = ?;
+
+deleteFieldsByLibrary:
+DELETE FROM Field WHERE libraryId = ?;

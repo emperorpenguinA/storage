@@ -1,0 +1,38 @@
+CREATE TABLE Library (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    iconKey TEXT NOT NULL DEFAULT 'folder',
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL
+);
+
+selectAllLibraries:
+SELECT * FROM Library ORDER BY updatedAt DESC;
+
+selectLibraryById:
+SELECT * FROM Library WHERE id = ?;
+
+insertLibrary:
+INSERT INTO Library(id, name, description, iconKey, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?);
+
+updateLibrary:
+UPDATE Library
+SET name = ?, description = ?, iconKey = ?, updatedAt = ?
+WHERE id = ?;
+
+touchLibrary:
+UPDATE Library SET updatedAt = ? WHERE id = ?;
+
+upsertLibrary:
+INSERT INTO Library(id, name, description, iconKey, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    name = excluded.name,
+    description = excluded.description,
+    iconKey = excluded.iconKey,
+    updatedAt = excluded.updatedAt;
+
+deleteLibraryById:
+DELETE FROM Library WHERE id = ?;
