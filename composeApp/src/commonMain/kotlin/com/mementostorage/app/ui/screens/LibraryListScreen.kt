@@ -31,8 +31,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mementostorage.app.di.AppContainer
 import com.mementostorage.app.domain.model.Library
+import com.mementostorage.app.ui.components.SortCriterion
+import com.mementostorage.app.ui.components.SortDirection
 import com.mementostorage.app.ui.components.SortMenuButton
-import com.mementostorage.app.ui.components.SortOption
+import com.mementostorage.app.ui.components.SortSpec
+import com.mementostorage.app.ui.components.sortedBySpec
+
+private val LIBRARY_SORT_CRITERIA = listOf(
+    SortCriterion(id = "name", label = "名前順"),
+    SortCriterion(id = "updated", label = "更新日時順", defaultDirection = SortDirection.DESCENDING),
+    SortCriterion(id = "created", label = "作成日時順", defaultDirection = SortDirection.DESCENDING),
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,13 +53,14 @@ fun LibraryListScreen(
     onOpenSettings: () -> Unit,
 ) {
     val libraries by container.libraryRepository.observeLibraries().collectAsState(initial = emptyList())
-    var sortOption by remember { mutableStateOf(SortOption.NAME) }
-    val sortedLibraries = remember(libraries, sortOption) {
-        when (sortOption) {
-            SortOption.NAME -> libraries.sortedBy { it.name }
-            SortOption.UPDATED_DESC -> libraries.sortedByDescending { it.updatedAt }
-            SortOption.CREATED_DESC -> libraries.sortedByDescending { it.createdAt }
+    var sortSpec by remember { mutableStateOf(SortSpec("name", SortDirection.ASCENDING)) }
+    val sortedLibraries = remember(libraries, sortSpec) {
+        val comparator = when (sortSpec.criterionId) {
+            "updated" -> compareBy<Library> { it.updatedAt }
+            "created" -> compareBy<Library> { it.createdAt }
+            else -> compareBy { it.name }
         }
+        libraries.sortedBySpec(comparator, sortSpec)
     }
 
     Scaffold(
@@ -58,7 +68,7 @@ fun LibraryListScreen(
             TopAppBar(
                 title = { Text("マイライブラリ") },
                 actions = {
-                    SortMenuButton(selected = sortOption, onSelect = { sortOption = it })
+                    SortMenuButton(criteria = LIBRARY_SORT_CRITERIA, spec = sortSpec, onSpecChange = { sortSpec = it })
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "設定")
                     }
