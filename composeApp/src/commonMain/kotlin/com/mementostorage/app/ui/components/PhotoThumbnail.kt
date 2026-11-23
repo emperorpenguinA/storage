@@ -1,8 +1,10 @@
 package com.mementostorage.app.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -42,11 +44,14 @@ import kotlinx.coroutines.withContext
  * [com.mementostorage.app.drive.SyncService.ensureAttachmentBytes] fetches and caches them from
  * Drive on first display.
  *
- * When [enlargeOnClick] is set, tapping the thumbnail opens it full-screen in a dialog (tap the
- * dialog's background or its close button to dismiss). Leave it off where the thumbnail sits
- * inside something else that's already clickable — e.g. a list row that opens the record — to
- * avoid the two clicks fighting over the tap.
+ * [enlargeOnClick] and [enlargeOnLongClick] each open the photo full-screen in a dialog (tap
+ * the dialog's background or its close button to dismiss) on a plain tap or a long-press,
+ * respectively. [onClick] fires on a plain tap alongside (or instead of, if [enlargeOnClick] is
+ * left off) enlarging — pass the list row's own "open this record" callback there so a list
+ * thumbnail keeps tapping-opens-the-record behavior while a long-press enlarges it instead of
+ * the two gestures fighting over which element owns the touch.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PhotoThumbnail(
     container: AppContainer,
@@ -54,17 +59,20 @@ fun PhotoThumbnail(
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
     enlargeOnClick: Boolean = false,
+    enlargeOnLongClick: Boolean = false,
+    onClick: (() -> Unit)? = null,
 ) {
     var bitmap by remember(attachment?.id) { mutableStateOf<ImageBitmap?>(null) }
     var showFullScreen by remember { mutableStateOf(false) }
     val density = LocalDensity.current
+    val canEnlarge = enlargeOnClick || enlargeOnLongClick
 
     // A little more than the on-screen size covers higher-density screens without decoding at
     // full camera resolution just to shrink it back down; the enlarge dialog gets a generous
     // cap of its own since it's meant to show real detail, not just a small preview.
-    val maxDimensionPx = remember(size, enlargeOnClick, density) {
+    val maxDimensionPx = remember(size, canEnlarge, density) {
         val thumbnailPx = with(density) { (size.toPx() * 3).toInt() }.coerceAtLeast(96)
-        if (enlargeOnClick) maxOf(thumbnailPx, 1600) else thumbnailPx
+        if (canEnlarge) maxOf(thumbnailPx, 1600) else thumbnailPx
     }
 
     LaunchedEffect(attachment?.id, attachment?.localPath, maxDimensionPx) {
@@ -104,7 +112,18 @@ fun PhotoThumbnail(
             .size(size)
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .let { if (enlargeOnClick && decoded != null) it.clickable { showFullScreen = true } else it },
+            .let {
+                when {
+                    decoded == null -> it
+                    enlargeOnLongClick -> it.combinedClickable(
+                        onClick = { if (enlargeOnClick) showFullScreen = true else onClick?.invoke() },
+                        onLongClick = { showFullScreen = true },
+                    )
+                    enlargeOnClick -> it.clickable { showFullScreen = true }
+                    onClick != null -> it.clickable(onClick = onClick)
+                    else -> it
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
         if (decoded != null) {

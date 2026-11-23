@@ -38,8 +38,51 @@ import com.mementostorage.app.domain.model.FieldType
 import com.mementostorage.app.domain.model.Library
 import com.mementostorage.app.domain.model.LibraryField
 import com.mementostorage.app.ui.components.PhotoThumbnail
+import com.mementostorage.app.ui.components.SortCriterion
+import com.mementostorage.app.ui.components.SortDirection
 import com.mementostorage.app.ui.components.SortMenuButton
-import com.mementostorage.app.ui.components.SortOption
+import com.mementostorage.app.ui.components.SortSpec
+import com.mementostorage.app.ui.components.sortedBySpec
+
+private const val PRIMARY_SORT_ID = "primary"
+private const val UPDATED_SORT_ID = "updated"
+private const val CREATED_SORT_ID = "created"
+private const val FIELD_SORT_PREFIX = "field:"
+
+/** A library's own fields, as additional sort criteria (sorting by an attachment id is meaningless, so PHOTO is skipped). */
+private fun sortCriteriaFor(library: Library?): List<SortCriterion> {
+    val fixed = listOf(
+        SortCriterion(id = PRIMARY_SORT_ID, label = "名前順"),
+        SortCriterion(id = UPDATED_SORT_ID, label = "更新日時順", defaultDirection = SortDirection.DESCENDING),
+        SortCriterion(id = CREATED_SORT_ID, label = "作成日時順", defaultDirection = SortDirection.DESCENDING),
+    )
+    val fieldCriteria = library?.fields.orEmpty()
+        .filter { it.type != FieldType.PHOTO }
+        .sortedBy { it.position }
+        .map { field -> SortCriterion(id = "$FIELD_SORT_PREFIX${field.id}", label = "「${field.name}」順") }
+    return fixed + fieldCriteria
+}
+
+/** Comparator (always ascending; direction is applied separately) for [sortSpec]'s chosen criterion. */
+private fun entryComparatorFor(sortSpec: SortSpec, library: Library?): Comparator<Entry> {
+    val primaryFieldId = library?.fields?.minByOrNull { it.position }?.id
+    val fieldId = sortSpec.criterionId.removePrefix(FIELD_SORT_PREFIX)
+    val field = library?.fields?.firstOrNull { it.id == fieldId }
+    return when {
+        sortSpec.criterionId == UPDATED_SORT_ID -> compareBy { it.updatedAt }
+        sortSpec.criterionId == CREATED_SORT_ID -> compareBy { it.createdAt }
+        field != null -> field.toEntryComparator()
+        else -> compareBy { entry: Entry -> primaryFieldId?.let { entry.values[it] }.orEmpty() }
+    }
+}
+
+/** Sorts a field's raw stored string value the way it's actually meant to be compared, not lexicographically. */
+private fun LibraryField.toEntryComparator(): Comparator<Entry> = when (type) {
+    FieldType.NUMBER -> compareBy { entry: Entry -> entry.values[id]?.toDoubleOrNull() }
+    FieldType.CURRENCY -> compareBy { entry: Entry -> entry.values[id]?.substringBefore('|')?.toDoubleOrNull() }
+    FieldType.CHOICE -> compareBy { entry: Entry -> entry.values[id]?.let { options.indexOf(it).takeIf { idx -> idx >= 0 } } }
+    else -> compareBy { entry: Entry -> entry.values[id] }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,19 +99,15 @@ fun EntryListScreen(
 
     val entries by container.entryRepository.observeEntries(libraryId).collectAsState(initial = emptyList())
     var query by remember { mutableStateOf("") }
-    var sortOption by remember { mutableStateOf(SortOption.NAME) }
-    val filteredEntries = remember(entries, query, sortOption, library) {
+    var sortSpec by remember { mutableStateOf(SortSpec(PRIMARY_SORT_ID, SortDirection.ASCENDING)) }
+    val sortCriteria = remember(library) { sortCriteriaFor(library) }
+    val filteredEntries = remember(entries, query, sortSpec, library) {
         val matching = if (query.isBlank()) {
             entries
         } else {
             entries.filter { entry -> entry.values.values.any { it.contains(query, ignoreCase = true) } }
         }
-        val primaryFieldId = library?.fields?.minByOrNull { it.position }?.id
-        when (sortOption) {
-            SortOption.NAME -> matching.sortedBy { entry -> primaryFieldId?.let { entry.values[it] }.orEmpty() }
-            SortOption.UPDATED_DESC -> matching.sortedByDescending { it.updatedAt }
-            SortOption.CREATED_DESC -> matching.sortedByDescending { it.createdAt }
-        }
+        matching.sortedBySpec(entryComparatorFor(sortSpec, library), sortSpec)
     }
 
     Scaffold(
@@ -79,7 +118,7 @@ fun EntryListScreen(
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る") }
                 },
                 actions = {
-                    SortMenuButton(selected = sortOption, onSelect = { sortOption = it })
+                    SortMenuButton(criteria = sortCriteria, spec = sortSpec, onSpecChange = { sortSpec = it })
                     IconButton(onClick = onEditSchema) { Icon(Icons.Default.Settings, contentDescription = "項目を編集") }
                 },
             )
@@ -143,7 +182,7 @@ private fun EntryRow(container: AppContainer, entry: Entry, library: Library, on
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
         ListItem(
             leadingContent = if (photoField != null) {
-                { PhotoThumbnail(container = container, attachment = photoAttachment) }
+                { PhotoThumbnail(container = container, attachment = photoAttachment, enlargeOnLongClick = true, onClick = onClick) }
             } else null,
             headlineContent = { Text(title) },
             supportingContent = if (subtitle.isNotBlank()) {
